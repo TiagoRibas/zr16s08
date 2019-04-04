@@ -1,0 +1,1024 @@
+setup:	mvs r1,0x0 ;var esperando
+			mov r0,0x2B ;var device_id
+			mov r5,r0
+			mov r0,0x71 ;var hsd7650
+			mov io (0x9),r0 ;var r_io_hsd
+			mov r0,0x80 ;var rodando
+			mov io (0xA),r0 ;var r_io_sd
+			mov r0,0x3F ;var soc_ch3_int
+			mov io (0x4),r0 ;var r_adc_ctrl_st_lsb
+			mov r0,0x5 ;var hab_int0_bs
+			mov io (0x0),r0 ;var r_ctrl_int_st
+			mvs r15,0x1 ;var hint
+adc_loop:	mov r1,r1
+			jz 0xC ;label adc_loop
+			mov r0,0x4
+			cmp r0,r4
+			jz 0x26 ;label sens4
+			mov r0,0x3
+			cmp r0,r4
+			jz 0x23 ;label sens3
+			mov r0,0x2
+			cmp r0,r4
+			jz 0x20 ;label sens2
+			mov r0,0x1
+			cmp r0,r4
+			jz 0x1D ;label sens1
+sens0:	mov r0,0x1
+			cmp r3,r0
+			jc 0x29 ;label aciona
+sens1:	mov r0,0x2
+			cmp r3,r0
+			jc 0x29 ;label aciona
+sens2:	mov r0,0x4
+			cmp r3,r0
+			jc 0x29 ;label aciona
+sens3:	mov r0,0x8
+			cmp r3,r0
+			jc 0x29 ;label aciona
+sens4:	mov r0,0x10
+			cmp r3,r0
+			jc 0x29 ;label aciona
+aciona:	mov r0,r5
+			and r0,0x1 ;var masc_bit_zero
+			shl r5,r5
+			mov r0,r0
+			jz 0x2F ;label pulso_zero
+			jnz 0x36 ;label pulso_um
+pulso_zero:	mvs r1,0x0 ;var esperando
+			mvs r2,0x0
+			mov r0,0xA
+			mov r6,r0
+			mov r0,0x28
+			mov r7,r0
+			jmp 0x3D ;label set_high
+pulso_um:	mvs r1,0x0 ;var esperando
+			mvs r2,0x0
+			mov r0,0x19
+			mov r6,r0
+			mov r0,0x19
+			mov r7,r0
+			jmp 0x3D ;label set_high
+set_high:	mov r0,0x64 ;var dc_lsb
+			mov io (0x1C),r0 ;var r_c0
+			mov r0,0x0 ;var dc_msb
+			mov io (0x1D),r0 ;var r_c1
+			mov r0,0x81
+			mov io (0xA),r0 ;var r_io_sd
+			mvs r2,0x0
+			mov r0,0x87 ;var hab_timer
+			mov io (0x1E),r0 ;var r_cont_st
+loop_high:	mov r1,r1
+			jz 0x46 ;label loop_high
+			inc r2
+			cmp r6,r2
+			jz 0x4D ;label set_low
+			mvs r1,0x0 ;var esperando
+			jmp 0x46 ;label loop_high
+set_low:	mov r0,0x0
+			mov io (0x1E),r0 ;var r_cont_st
+			mov r0,0x64 ;var dc_lsb
+			mov io (0x1C),r0 ;var r_c0
+			mov r0,0x0 ;var dc_msb
+			mov io (0x1D),r0 ;var r_c1
+			mov r0,0x80
+			mov io (0xA),r0 ;var r_io_sd
+			mvs r2,0x0
+			mov r0,0x87 ;var hab_timer
+			mov io (0x1E),r0 ;var r_cont_st
+loop_low:	mov r1,r1
+			jz 0x58 ;label loop_low
+			inc r2
+			cmp r7,r2
+			jz 0x5F ;label bit_check
+			mvs r1,0x0 ;var esperando
+			jmp 0x58 ;label loop_low
+bit_check:	inc r8
+			mov r0,0x8
+			cmp r0,r8
+			jz 0x64 ;label restaura
+			jmp 0x29 ;label aciona
+restaura:	mov r0,0x0
+			mov io (0x1E),r0 ;var r_cont_st
+			jmp 0x0 ;label setup
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			mov (0x0),r0 ;var mem_r0
+			mov io (0x0),r0 ;var r_ctrl_int_st
+			cmp r0,0x4 ;var int_adc
+			jz 0x3CB ;label intadc
+			cmp r0,0x8 ;var int_timer
+			jz 0x3D2 ;label inttimer
+			cmp r0,0x1 ;var int_ext
+			jz 0x3D7 ;label intext
+			mov r0,0x40 ;var erro
+			mov io (0xA),r0 ;var r_io_sd
+			jmp 0x3CA ;var $
+intadc:	mov r0,0xF ;var adc_stop
+			mov io (0x4),r0 ;var r_adc_ctrl_st_lsb
+			mvs r1,0x1 ;var interrompeu
+			mov io r0,(0x5) ;var r_adc_data_msb
+			mov r3,r0
+			mov r0,(0x0) ;var mem_r0
+			rets
+inttimer:	mvs r1,0x1 ;var interrompeu
+			mov r0,0x87 ;var hab_timer
+			mov io (0x1E),r0 ;var r_cont_st
+			mov r0,(0x0) ;var mem_r0
+			rets
+intext:	mov r0,0x8 ;var des_int0_bs
+			mov io (0x0),r0 ;var r_ctrl_int_st
+			mvs r15,0x1 ;var hint
+			mvs r1,0x1 ;var interrompeu
+			inc r4
+			mvs r0,0x5
+			cmp r0,r4
+			jz 0x3E0 ;label zerar
+			rets
+zerar:	mvs r4,0x0
+			rets
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			

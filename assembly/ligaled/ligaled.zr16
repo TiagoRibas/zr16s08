@@ -1,0 +1,9 @@
+					dv		hab_sd0	= 0b00000001
+					dv		reg_hsd		= 0x09
+					dv		reg_sd 		= 0x0A
+					dv		rodando		= 0b00000001
+
+					mov		r0,hab_sd0
+					mov	io	(reg_hsd),r0
+					mov		r0,rodando
+					mov	io	(reg_sd),r0

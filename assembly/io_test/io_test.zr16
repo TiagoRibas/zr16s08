@@ -1,0 +1,4 @@
+mov r0,0b11111111
+mov io (0x09),r0
+mov r0,0b11111111
+mov	io	(0x0A),r0 

@@ -1,0 +1,121 @@
+;----------------------------------------------
+;Este codigo tem por objetivo gerar pulsos consecutivos
+;cujos quais podem ter sua frequencia alterada de acordo
+;com um botao implementado no pino 11. A saida e obtida nos
+;pinos 1(saida) e 0(ligado).
+;----------zr16----------------------------------- 
+			dv	hint	=	0b00000001				;Valor de habilitacao do bit hint
+			dv	rot_int	=	0x3C0					;Endereco da rotina de interrupcao
+;----------interrupt-----------------------------------
+			dr	status_int	=	r1					;Registrador que define status das interrupcoes
+			dv	aguardando	=	0					;Aguardando interrupcao
+			dv	interrompeu	=	1    				;Interrupcao ocorreu
+			dv	int_ext_bs	=	0b00000111			;Habilita interrupcao externa 0 por borda de subida
+			dv	off_int_ext	=	0b00001011			;Desliga a interrupcao externa
+			dv	reg_ctrl_int	=	0x00			;Registrador de controle de interrupcao
+			dv	int_ext0	=	0b00000001 			;Identificador de interrupcao externa
+			dv	int_timer	=	0b00001000 			;Identificador de interrupcao no timer
+;----------timer----------------------------------- 
+			dv	reg_c0			= 0x1C				;Reg. carga zero
+			dv	reg_c1			= 0x1D				;Reg  carga um
+			dv	reg_cont_st		= 0x1E				;Reg. status do down counter
+			dv	hab_timer		= 0b10000111		;Habilitacao de contador
+			dv	tempo			= 10				;Ciclos a serem efetuados numa contagem
+			dv	dc_msb			= sr8(tempo)		;msb
+			dv	dc_lsb			= 0x00FF & tempo	;lsb
+			dr	contador		= r2				;Contador a ser incrementado
+			dv	periodo			= 24
+			dv	tempo_high_2	= periodo/2			;Tempo de high 
+			dv	tempo_low_2		= periodo-(periodo/2)				;Tempo de low
+			dv	tempo_high_3	= periodo/3			;Tempo de high 
+			dv	tempo_low_3		= periodo-(periodo/3)				;Tempo de low
+			dv	tempo_high_4	= periodo/4			;Tempo de high 
+			dv	tempo_low_4		= periodo-(periodo/4)				;Tempo de low 
+			dr	duty_cycle	=	r3 
+			dr	tempo_high	=	r4
+			dr	tempo_low	=	r5  
+;----------IO----------------------------------- 			 
+			dv	reg_hab_sd	=	0x09				;Registrdor de habilitacao de saidas digitais
+			dv	reg_sd	=	0x0A					;Registrador de valorndas saidas digitais
+			dv	hab_sd01	=	0b00000011			;Habilitacao de saidas digitais 0 e 1
+			dv	on_sd1	=	0b00000011				;Liga sd1
+			dv	off_sd1	=	0b00000001				;Desliga sd1
+;----------setup-----------------------------------      
+			mvs	duty_cycle,2 
+			mvs	status_int,aguardando 				;Aguardando por interrupcao
+			mov	r0,int_ext_bs						;
+			mov	io	(reg_ctrl_int),r0 				;Liga interrupcao externa 0
+			mov	r0,hab_sd01							;
+			mov	io	(reg_hab_sd),r0					;Habilita saidas digitais 1 e 0
+			mov	r0,off_sd1							;
+			mov	io	(reg_sd),r0						;Liga sd0
+			mov	r0,dc_lsb							;
+			mov	io	(reg_c0),r0						;Carrega carga 0(msb)
+			mov	r0,dc_msb							;
+			mov	io	(reg_c1),r0						;Carrega carga 1(lsb)
+			mov	r0,hab_timer						;
+			mov	io	(reg_cont_st),r0  				;Habilita interrupcao de timer
+			mvs	r15,hint							;Habilita interrupcoes no zr16
+;----------main----------------------------------- 
+set_tempo:	mvs	r0,2
+			cmp r0,duty_cycle
+			jz	set_2
+			mvs r0,3
+			cmp r0,duty_cycle
+			jz	set_3
+			mvs	r0,4
+			cmp r0,duty_cycle
+			jz	set_4
+			mvs duty_cycle, 2
+set_2:		mov r0,tempo_high_2
+			mov	tempo_high,r0
+			mov r0,tempo_low_2
+			mov	tempo_low,r0
+			jmp liga_sd1
+set_3:		mov	r0,tempo_high_3
+			mov	tempo_high,r0 
+			mov	r0,tempo_low_3
+			mov	tempo_low,r0
+			jmp liga_sd1 
+set_4:		mov	r0,tempo_high_4
+			mov	tempo_high,r0 
+			mov	r0,tempo_low_4
+			mov	tempo_low,r0 
+liga_sd1:	mov	r0,on_sd1
+			mov	io	(reg_sd),r0
+			mvs contador,0
+int_check1:	mov	status_int,status_int
+			jz	int_check1
+			mvs	status_int,aguardando
+t_on_sd1:	inc	contador
+			mov	r0,tempo_high
+			cmp	r0,contador
+			jnz	int_check1
+desliga_sd1:mov	r0,off_sd1
+			mov	io	(reg_sd),r0
+			mvs contador,0
+int_check2:	mov	status_int,status_int
+			jz	int_check2
+			mvs	status_int,aguardando 
+t_off_sd1:	inc	contador
+			mov	r0,tempo_low
+			cmp	r0,contador
+			jnz	int_check2	
+			mov	r0,int_ext_bs
+			mov	io	(reg_ctrl_int),r0 
+;----------interrupt-----------------------------------  
+			org	rot_int
+			mov	io	r0,(reg_ctrl_int)
+			cmp	r0,int_ext0
+			jz	ext_ok
+			mov	io	r0,(reg_ctrl_int)
+			cmp	r0,int_timer
+			jz	timer_ok
+			jmp $
+ext_ok:		mvs	status_int,interrompeu
+			mov	r0,off_int_ext
+			rets
+timer_ok:	mvs	status_int,interrompeu
+			mov	r0, hab_timer
+			mov	io	(reg_cont_st),r0 
+			rets 

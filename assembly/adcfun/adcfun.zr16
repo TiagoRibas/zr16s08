@@ -1,0 +1,104 @@
+;--------------------- Microprocessador------------------------------------------------------------------
+			dr      r_byte_inferior=r3
+			dr      r_byte_superior=r2
+			dr      r_controle_int =r5
+			dv 		hint          = 0b00000001 ; Habilita interrupção no ZR16
+			dv 		rot_int       = 0x3C0	   ; Rotina de interrupção
+            dv      esperaint     = 0          ; aguardando interrupcao
+			dv      interrompeu   = 1		   ; ocorreu a interrupcao
+;--------------------- Interrupt - CTRL ----------------------------------------------------------------
+			dv		r_int_st  = 0x00	   ; Registrador de Status do Interrupt-ctrl
+			dv		int_adc   = 0b00000100 ; Bit que indica intetrrupção do ADC no reg_intst
+			dv      int_timer	= 0b00001000		; Sinaliza a interrupção do timer
+;---------------------- IO - CTRL-----------------------------------------------------------------------
+			dv		r_io_hsd   = 0x09		; Reg. de habilitação das saídas digitais no IO-CTRL
+			dv		r_io_sd	   = 0x0A		; Reg. saídas digitais 7 a 0 no IO-CTRL
+			dv		hsd76210   = 0b11000111 ; Habilitação das saídas 7,6,2,1,0
+			dv      rodando	   = 0b10000000 ; informa que esta rodando
+			dv      erroint    = 0b11000000 ; informa que houve erro na interrupcao
+			dv		ligasd0		= 0b10000001
+			dv		desligasd0	= 0b10000000
+;---------------------- ADC -----------------------------------------------------------------------------
+			dv		r_adc_ctrl_sta_lsb 	= 0x04		  ; Reg. de controle e status do ADC e LSB do ADC
+            dv      r_adc_data_sup   	= 0x05        ; Reg. dados MSB do ADC
+			dv      masc_bit_inf    	= 0b00000011  ; mascara para os bits inferiores do adc
+			dv      soc_ch3_int         = 0b00111111  ; inicia a conversao para o ch3
+			dv		paraadc				= 0b00001111
+;------------------------------------------ Timer --------------------------------------------------------------------------------------------					
+			dv		reg_c0		= 0x1C				; Reg. Carga0 do Down Counter
+			dv		reg_c1		= 0x1D				; Reg. Carga1 do Down Counter
+			dv		reg_cont_st	= 0x1E				; Reg. Controle do Down Counter e Status
+			dv		h_tir		= 0b10000111    	; Habilitação do Down Counter, da interrupção, e da carga automática, desligando pz_mem se estiver ligado
+			dv      tempo 		= 50000			; Configure o tempo que deseja
+			dv      dc_msb		= sr8(tempo)		; Byte MSB para o Down Counter
+			dv		dc_lsb		= 0x00FF & tempo	; Byte LSB para o Down Counter ( "0xFF &" só para evitar warning)
+			dv      tmp_1s     	= 20				
+			
+;--------------------------------------------------------------------------------------------------------
+			mvs		r8,0 
+			mvs		r6,0
+			mov		r0,tmp_1s
+			mov		r7,r0
+			mov 	r0,hsd76210				 ; Habilita as saídas digitais
+			mov io  (r_io_hsd),r0            ;
+			mov		r0,rodando               ; Informa que esta rodado
+			mov	io	(r_io_sd),r0             ;
+			mov 	r0,dc_lsb						; Reg_carga0 do  Down Counter <-  LSB 
+			mov io 	(reg_c0),r0
+			mov 	r0,dc_msb						; Reg_carga1 do Down Counter <- MSB
+			mov io 	(reg_c1),r0 
+			mvs     r_controle_int,esperaint ; Estado: esperaint
+            mvs     r15,hint                 ; habilata o ZR16 a interromper
+			mov     r0,soc_ch3_int          ; dispara o adc.
+			mov io	(r_adc_ctrl_sta_lsb),r0 ; 
+adc10:		mov     r_controle_int,r_controle_int  ;  Ocorreu a interupcao?
+			jz     adc10                    ; Nao.
+;--------------------------------------------------------------------------------------------------------
+;          Main 
+;-------------------------------------------------------------------------------------------------------              
+			inc 	r6								; Incrementa a contagem de tempo
+			cmp 	r7,r6
+			jz		ligaled 		
+			jmp     adc10				
+ligaled:	mov		r8,r8
+			jnz 	desligaled
+			mov 	r0,ligasd0
+			mov	io	(r_io_sd),r0
+			mvs		r6,0
+			mvs		r8,1
+			jmp		adc10
+desligaled: mov 	r0,desligasd0
+			mov io	(r_io_sd),r0
+			mvs		r6,0
+			mvs		r8,0
+			jmp		adc10			 
+;--------------------------------------------------------------------------------------------------------
+;           Atendimento da Interrupção
+;--------------------------------------------------------------------------------------------------------			
+			org     rot_int
+			mov io 	r0,(r_int_st) 				    ; Verifique a interrupção
+			cmp     r0,int_adc						; É só a interrupção do adc?
+			jz      intadcok
+			mov io 	r0,(r_int_st) 				    ; Verifique a interrupção
+			cmp     r0,int_timer						; É só a interrupção do adc?
+			jz      inttimerok							; Sim,
+			mov     r0,erroint                      ; Nao, erro
+            or  io  (r_io_sd),r0                    ; Informa o erro
+			jmp     $						        ; para!
+inttimerok:	mvs     r_controle_int,interrompeu
+			mov		r0,h_tir						; Desliga pz_mem	
+			mov io	(reg_cont_st),r0
+			rets									; REtorna e seta o hint
+intadcok:	mvs     r_controle_int,interrompeu      ; Estado: interrompeu
+            mov     r0,r_adc_ctrl_sta_lsb           ; Le os dados do ADC
+            mov io  r0,(r0)                         ;
+            mvs     r_byte_inferior,masc_bit_inf	;
+			and     r_byte_inferior,r0              ;
+			mov io  r0,(r_adc_data_sup)				;
+			mov     r_byte_superior,r0				;
+			mov     r0,paraadc          
+			mov io	(r_adc_ctrl_sta_lsb),r0 ;
+			mvs     r_controle_int,esperaint       ; Estado: esperaint
+			mov 	r0,h_tir 						; Habilita: contagem, interrrupçao e recarga automatica do Down Counter   
+			mov io 	(reg_cont_st),r0 				; 
+            rets

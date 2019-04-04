@@ -1,0 +1,1024 @@
+setup:	mvs r1,0x0 ;var esperando
+			mov r0,0x2A ;var device_id
+			mov (0x1),r0
+			mvs r2,0x0
+			mov r0,0xF0 ;var hsd4567
+			mov io (0x9),r0 ;var r_io_hsd
+			mov r0,0x80 ;var rodando
+			mov io (0xA),r0 ;var r_io_sd
+			mvs r0,0x1 ;var hint
+			mov r15,r0
+pre_check:	mov r0,0x64 ;var c_lsb
+			mov io (0x1C),r0 ;var r_c0
+			mov r0,0x0 ;var c_msb
+			mov io (0x1D),r0 ;var r_c1
+			mvs r3,0x0 ;var subida
+			mov r0,0xC0 ;var wait
+			mov io (0xA),r0 ;var r_io_sd
+			mov r0,0x5 ;var hab_int_ext0_bs
+			mov io (0x0),r0 ;var r_ctrl_int_st
+			mvs r1,0x0 ;var esperando
+ext_check:	mov r1,r1
+			jz 0x14 ;label ext_check
+			mvs r1,0x0 ;var esperando
+pre_read:	mvs r2,0x0
+			mov r0,0x87 ;var hab_timer
+			mov io (0x1E),r0 ;var r_cont_st
+sgnl_read:	mov r1,r1
+			jz 0x1A ;label sgnl_read
+			mvs r1,0x0 ;var esperando
+			inc r2
+			mov r0,0x5A ;var ciclos_sgnl
+			cmp r0,r2
+			jnz 0x1A ;label sgnl_read
+			inc r4
+			jmp 0x17 ;label pre_read
+check_type:	mvs r0,0x0 ;var des_timer
+			mov io (0x1E),r0 ;var r_cont_st
+			mvs r1,0x0 ;var esperando
+			mvs r0,0x1
+			cmp r4,r0
+			jz 0x2D ;label type_0
+			mvs r0,0x2
+			cmp r4,r0
+			jz 0x32 ;label type_1
+			jmp 0xA ;label pre_check
+type_0:	mov r0,(0x2)
+			rot (0x2),r0
+			mov r0,0xFE
+			and (0x2),r0
+			jmp 0x38 ;label id_check
+type_1:	mov r0,(0x2)
+			rot (0x2),r0
+			mov r0,0xFE
+			and (0x2),r0
+			mov r0,0x1
+			or (0x2),r0
+id_check:	mov r0,(0x1)
+			cmp (0x2),r0
+			jnz 0xA ;label pre_check
+acionar:	mov r0,0xA0 ;var aciona
+			mov io (0xA),r0 ;var r_io_sd
+			mov r0,0x50 ;var hab_int_ext1_bs
+			mov io (0x0),r0 ;var r_ctrl_int_st
+ext_check2:	mov r1,r1
+			jz 0x3F ;label ext_check2
+desligar:	mov r0,0x80 ;var des_int_ext1
+			mov io (0x0),r0 ;var r_ctrl_int_st
+			mov r0,0x0 ;var esperando
+			mov io (0xA),r0 ;var r_io_sd
+			mvs r15,0x1 ;var hint
+			jmp 0xA ;label pre_check
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			mov (0x0),r0 ;var mem_r0
+			mov io r0,(0x0) ;var r_ctrl_int_st
+			cmp r0,0x8 ;var int_timer
+			jz 0x3CB ;label inttimer
+			cmp r0,0x1 ;var int_ext
+			jz 0x3D0 ;label intexttype
+			cmp r0,0x9 ;var int_ext_timer
+			jz 0x3D0 ;label intexttype
+			mov r0,0x10 ;var erro
+			mov io (0xA),r0 ;var r_io_sd
+			jmp 0x3CA ;var $
+inttimer:	mvs r1,0x1 ;var interrompeu
+			mov r0,0x87 ;var hab_timer
+			mov io (0x1E),r0 ;var r_cont_st
+			mov r0,(0x0) ;var mem_r0
+			rets
+intexttype:	mvs r0,0x0
+			mov io (0x1E),r0 ;var r_cont_st
+			mov r3,r3
+			jz 0x3D9 ;label intextbs
+intextbd:	mov r0,0x8 ;var des_int_ext0
+			mov io (0x0),r0 ;var r_ctrl_int_st
+			mvs r1,0x1 ;var interrompeu
+			mvs r15,0x1 ;var hint
+			jmp 0x23 ;label check_type
+intextbs:	mov r0,0x8 ;var des_int_ext0
+			mov io (0x0),r0 ;var r_ctrl_int_st
+			mvs r3,0x1 ;var descida
+			mvs r1,0x1 ;var interrompeu
+			mov r0,0x6 ;var hab_int_ext0_bd
+			mov io (0x0),r0 ;var r_ctrl_int_st
+			mvs r15,0x1 ;var hint
+			mov r0,(0x0) ;var mem_r0
+			rets
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			

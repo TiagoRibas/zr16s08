@@ -1,0 +1,24 @@
+
+			mov	r0,0b00000111
+			mov	io	(0x00),r0
+			mvs	r15,0b00000001 
+wait:		mov	r1,r1
+			jz	wait
+			mov	r0,0b00000001
+			mov	io	(0x09),r0
+			mov	r0,0b00000001
+			mov	io	(0x0A),r0
+			mvs	r1,0
+			mov	r0,0b00000111
+			mov	io	(0x00),r0
+			jmp wait 
+
+			org	0x3C0
+			mov	io	r0,(0x00)
+			cmp	r0,0b00000001
+			jz	intok
+			rets
+intok:		mvs	r1,1
+			mov	r0,0b00001011
+			mov	io	(0x00),r0 
+			rets  

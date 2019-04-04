@@ -1,0 +1,105 @@
+;------------------------------------------	ZR16 --------------------------------------------------------------------------------------------
+					dv 		hab_int 	= 0b00000001		; Habilita de interrupção no ZR16
+					dv 		rot_int  	= 0x3C0				; Endereco da rotina de interrupção
+;------------------------------------ 	Interrupt - CTRL ------------------------------------------------------------------------------------
+					dv      reg_intst  	= 0x00				; Registrador de status de interrucao
+					dv      inttimer	= 0b00001000		; Sinaliza a interrupção do timer
+					dv		esperaint	= 0					; Espera int
+					dv		inttimerok  = 1					; Interrupcao ok
+					dv		interro		= 2					; Interrupcao com erro
+;------------------------------------------	IO - CTRL ---------------------------------------------------------------------------------------
+					dv		reg_hsd		= 0x09				; Reg. de habilitacao das saidas digitais
+					dv		reg_sd		= 0x0A				; Reg. saida digital 7-0
+					dv		hab_sd760	= 0b11000001		; Habilitacao das saídas digitais 7,6, e 0
+					dv		rodando		= 0b10000000		; Indica que estáligado em SD7
+					dv      erroint		= 0b11000000		; Erro na interrupção mantendo SD7
+					dv		ligasd0  	= 0b10000001        ; Liga a saida SD0
+					dv		desligasd0	= 0b10000000		; Desliga a saida SD0
+					dv 		gohigh		= 0					; Configura para gerar a parte alta do pulso
+					dv		golow		= 1					; Configura para gerar a parte baixa do pulso
+;------------------------------------------ Timer --------------------------------------------------------------------------------------------					
+					dv		reg_c0		= 0x1c				; Reg. Carga0 do Down Counter
+					dv		reg_c1		= 0x1D				; Reg. Carga1 do Down Counter
+					dv		reg_cont_st	= 0x1E				; Reg. Controle do Down Counter e Status
+					dv		h_tir		= 0b10000111    	; Habilitação do Down Counter, da interrupção, e da carga automática, desligando pz_mem se estiver ligado
+					dv      tempo 		= 5000				; Configure o tempo que deseja (100 para 0.0001s)
+					dv      dc_msb		= sr8(tempo)		; Byte MSB para o Down Counter
+					dv		dc_lsb		= 0x00FF & tempo	; Byte LSB para o Down Counter ( "0xFF &" só para evitar warning)
+					dv      tmp_low     = 80				; Incrementos da parte baixa (30 => 3ms)
+					dv		tmp_high	= 80				; Incrementos da parte alta (60 => 6ms)
+;-----------------------------------------------------------------------------------------------------------------------------------------------
+					mvs		r1,esperaint					; r1: mensagem da interrupção
+					mvs 	r2,0 							; r2: contador de tempo (incrementos de acordo com a variável tempo)
+					mov		r0,tmp_high						
+					mov		r4,r0							; r4: tempo de alta do pulso 
+					mov		r0,tmp_low
+					mov		r5,r0 							; r5: tempo de baixa do pulso 
+					mov		r3,r4                       	; r3: começa contando parte alta
+					mvs		r6,gohigh
+					mov 	r0,hab_sd760					; Habilita as saidas digitais 7,6,0
+					mov io 	(reg_hsd),r0
+					mov		r0,rodando						; Informa que esta rodando ligando SD7
+					or  io  (reg_sd),r0
+					mov 	r0,dc_lsb						; Reg_carga0 do  Down Counter <-  LSB 
+					mov io 	(reg_c0),r0
+					mov 	r0,dc_msb						; Reg_carga1 do Down Counter <- MSB
+					mov io 	(reg_c1),r0 
+					mvs 	r15,hab_int  					; Habilita int do ZR16
+					mov 	r0,h_tir 						; Habilita: contagem, interrrupçao e recarga automatica do Down Counter   
+					mov io 	(reg_cont_st),r0 				; 
+
+espera: 			mov		r1,r1							; Verefica se teve interrupcao
+					jz		espera                          ; Não
+					mvs     r0,inttimerok					; Sim, a interrupção é só a do timer?
+					cmp		r1,r0							; 
+					jz      status_chk						; Sim. Verifica qual se o ultimo coisa enviada era 1 ou 0
+					jmp     erro							; Não, erro
+
+status_chk:			mov		r6,r6
+					jz		loop_high
+					jmp		loop_low
+
+loop_high: 			mvs		r1,esperaint
+					inc 	r2								; Incrementa a contagem de tempo
+					cmp 	r4,r2 							; Passou o tempo de alta?
+					jz 		set_low							; Sim, agora fazer a parte baixa
+					jmp 	espera							; Não, volta a contar
+
+set_low:            mov 	r0,desligasd0					; Desliga SD0
+					mov 	io (reg_sd),r0
+					mvs 	r2,0							; Zera o contador de tempo
+					mvs		r6,golow						; Indica que proxima etapa eh fazer a parte baixa
+					jmp 	espera 							;Volta a esperar
+
+loop_low:			mvs		r1,esperaint
+					inc 	r2								; Incrementa a contagem de tempo
+					cmp 	r5,r2 							; Passou um o tempo de baixa?
+					jz 		set_high						; Sim, agora fazer a parte alta
+					jmp 	espera							; Não, volta a contar
+
+set_high:			mov 	r0,ligasd0						; Liga sd0
+					mov 	io (reg_sd),r0
+					mvs 	r2,0							; Zera o contador de tempo
+					mvs		r6,gohigh						; Indica que proxima etapa eh fazer a parte baixa
+					jmp 	espera 							; Volta a esperar
+; ------------------ Rotina de erro 1: Erro na interrupção -------------------------------------------------------------------------------------------
+erro: 	            mov		r0,erroint						; SD7 = 1 e SD6=1 (erro )
+					and io	(reg_sd),r0 	
+        			jmp     $       						; fica aqui
+; ------------------ Atendimento de interrupção ------------------------------------------------------------------------------------------------------
+					org 	rot_int
+					mov io 	r0,(reg_intst) 					; Verifique a interrupção
+					cmp     r0,inttimer						; É só a interrupção do timer?
+					jz      intok							; Sim
+					mvs     r1,interro						; Não, informa o erro e retorna com as interrupções desabilitadas
+					ret
+intok:				mov		r0,h_tir						; Desliga pz_mem	
+					mov io	(reg_cont_st),r0
+					mvs		r1,inttimerok					; Informa intok
+					rets									; REtorna e seta o hint
+
+; NOTAS:
+; Linhas 47-49: talvez seja ideal inverter a hab. de int. do ZR16 com a hab. do Timer
+; Linha 55,58: Talvez verificar pela saida SD0 seja melhor do que ocupar um reg....
+;
+;

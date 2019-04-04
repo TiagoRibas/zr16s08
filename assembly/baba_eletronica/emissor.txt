@@ -1,0 +1,6 @@
+Leitura do ADC
+Teste de Limite do ADC
+Teste de tempo de passagem do limite (Timer)
+Regulaçao do Limite (INT0 afeta carga do timer)
+
+Testar Microfone!!!

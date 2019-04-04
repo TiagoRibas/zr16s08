@@ -1,0 +1,131 @@
+			
+			dv	tempo	=	1000				;1ms
+			dv	dc_msb	=	sr8(tempo)			;Carga 0 do timer
+			dv	dc_lsb	=	0x00FF & tempo		;Carga 1 do timer
+			dr	data_pntr	=	r8
+			dr	tempo_high	=	r6
+			dr	tempo_low	=	r7
+			dr	contador	=	r9
+			dr	status_int	=	r1  
+;------------------------------------------------- 
+setup:		mov	r0,0x01
+			mov	data_pntr,r0
+			mov r0,0b10000001
+			mov	io	(0x09),r0 
+			mov	r0,dc_lsb
+			mov	io	(0x1C),r0 
+			mov	r0,dc_msb
+			mov	io	(0x1D),r0 
+			mov r0,0b00000101
+			mov	io	(0x00),r0
+			mov r4,r0
+			mov	r0,0b00000001
+			mov	r15,r0
+wait_ext:	mov	r1,r1
+			jz	wait_ext 
+loop_timer1:mov	r1,r1
+			jz	loop_timer1
+			mov	r0,0
+			mov	r1,r0
+			inc	(data_pntr)
+			jmp loop_timer1
+loop_timer2:mov	r1,r1
+			jz	loop_timer2
+			mov	r0,0
+			mov	r1,r0
+			inc	(data_pntr)
+			jmp loop_timer2
+pre_send:	mov	r0,0x02
+			mov	data_pntr,r0
+get_times:	mov	r0,0
+			mov	io	(0x1E),r0
+			mov	r0,0xFF
+			cmp r0,data_pntr
+			jz	wait_ext
+			mov	r0,(data_pntr)
+			mov	tempo_high,r0
+			inc data_pntr
+			mov r0,(data_pntr)
+			mov	tempo_low,r0
+			mov	r0,0b10000111
+			mov	io	(0x1E),r0
+;----------reenvia----------------------------------- 
+set_high:	mov 	r0,0b10000001						
+			mov io 	(0x0A),r0
+			mvs 	contador,0							
+			jmp 	loop_high						
+loop_high: 	mov		status_int,status_int
+			jz		wait_high
+			mvs		status_int,0
+			inc 	contador						
+			cmp 	tempo_high,contador						
+			jz 		set_low							
+			jmp 	wait_high						
+set_low:	mov 	r0,0b10000000						
+			mov io 	(0x0A),r0
+			mvs 	contador,0							
+			jmp 	loop_low							
+loop_low:	mov		status_int,status_int
+			jz		wait_low
+			mvs		status_int,0
+			inc 	contador								
+			cmp 	tempo_low,contador 						
+			jz 		get_times
+			jc		setup						
+			jmp 	wait_low
+wait_high:	mov		status_int,status_int
+			jz		wait_high
+			jmp		loop_high						
+wait_low:	mov		status_int,status_int
+			jz		wait_low
+			jmp		loop_low
+;------------------------------------------------- 
+			org 0x3C0
+			mov	io	r0,(0x00)
+			cmp	r0,0b00000001
+			jz ext_type
+			cmp	r0,0b00001001
+			jz	ext_type
+			cmp	r0,0b00001000
+			jz	int_timer
+			jmp $
+disable_int:mov	r0,0b00001000
+			mov	io	(0x00),r0
+			mov r0,0b10000000
+			mov	io	(0x1E),r0
+			mov	r0,0b00000001
+			mov	r15,r0
+			jmp pre_send 
+ext_type:	mov	r0,0b00000110
+			cmp r4,r0
+			jz int_ext_bd
+int_ext_bs:	inc data_pntr
+			mov	r0,0b00001000
+			mov	io	(0x00),r0 
+			mov r0,0b00000110
+			mov	io	(0x00),r0
+			mov	r4,r0
+			mov	r0,0b10000111
+			mov	io	(0x1E),r0
+			mov	r0,0b00000001
+			mov	r15,r0
+			jmp loop_timer1 
+int_ext_bd:	inc data_pntr
+			mov	r0,0xFF
+			cmp	data_pntr,r0
+			jz	disable_int
+			mov	r0,0b00001000
+			mov	io	(0x00),r0 
+			mov r0,0b00000101
+			mov	io	(0x00),r0
+			mov	r4,r0
+			mov	r0,0b10000111
+			mov	io	(0x1E),r0
+			mov	r0,0b00000001
+			mov	r15,r0
+			jmp loop_timer2
+int_timer:	mov	r0,1
+			mov	r1,r0
+			mov	r0,0b10000111
+			mov	io	(0x1E),r0 
+			rets
