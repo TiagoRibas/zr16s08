@@ -8,6 +8,7 @@
 ;the external interuption to check if no other data
 ;is being transmitted.
 ;v5- Implementation of timing between data
+;v6- Implementation of receiving data mode at the end
 ;14/11/2017 - tiago.trj@gmail.com
 ;------------------zr16-------------------------------
 			dv	devide_id	=	0b00101010		;Identificacao do dispositivo
@@ -24,9 +25,11 @@
 			dv	int_adc	=	0b00000100			;Bits de interrupcao do adc
 			dv	int_timer	=	0b00001000		;Bits de interrupcao do timer
 			dv	hab_int_ext0_bs	=	0b00000101	;Habilita int externa 0 com borda de subida
-			dv	des_int_ext0_bs	=	0b00001000	;Deliga int ext.		
+			dv	des_int_ext0	=	0b00001000	;Deliga int ext.
+			dv	hab_int_ext0_bd =	0b00000110	;Habilita int ext 0 com borda de descida					
 			dr	status_int	=	r2 				;Reg. Armazenamento de int
 			dv	int_ext	=	0b00000001 
+			dv	int_ext_timer	=	0b00001001
 ;----------io-----------------------------------------
 			dv	r_io_hsd	=	0x09			;Reg. de hab de saidas digitais
 			dv	r_io_sd	=	0x0A				;Reg. valor saida digital
@@ -45,23 +48,30 @@
 			dv	r_c1	=	0x1D				;Endereco de carga um
 			dv	r_cont_st	=	0x1E   			;Endereco de controle do timer
 			dv	hab_timer	=	0b10000111		;Comando de habilitacoa do timer
-			dv	tempo	=	5000				;0,05s
+			dv	tempo	=	10				;0,05s (5000)
 			dv	dc_msb	=	sr8(tempo)			;Carga 0 do timer
 			dv	dc_lsb	=	0x00FF & tempo		;Carga 1 do timer
+			dv	tempo_ext	=	100				;0,1ms
+			dv	dc_msb_ext	=	sr8(tempo_ext)			;Carga 0 do timer
+			dv	dc_lsb_ext	=	0x00FF & tempo_ext		;Carga 1 do timer
 			dv	tempo_espera	=	1000		;
 			dv	dc_msb_espera	=	sr8(tempo_espera)		;
 			dv	dc_lsb_espera	=	0x00FF & tempo_espera	;
 			dr	contador	=	r5		;Resgistrador contador de loops do timer
 			dv	ciclos_data	=	10    	;Ciclos a serem efetuados pelo timer
-			dv	ciclos_espera	=	25	
+			dv	ciclos_espera	=	25
+			dv	ciclos_ext	=	90	
 			dv	ciclos_send	=	50  
 			dr	tempo_high	=	r6
-			dr	tempo_low	=	r7  
+			dr	tempo_low	=	r7
+			dr	extension	=	r9
+			dr	intext_type		=	r10
+			dr	deslocamentos	=	r11  
 ;----------setup---------------------------------------
 setup:		mvs	status_int,esperando	;Informa que o dispositivo espera por uma interrupcao
 			mov	r0,devide_id
-			mov	(0x01),r0 		;Identifica o dispositivo
-			mov	r0,0x02
+			mov	(0x02),r0 			;Identifica o dispositivo
+			mov	r0,0x03
 			mov	data_pntr,r0		;Começa na posição zero da memória 
 			mvs contador,0			;Carrega 0 no contador
 			mov	r0,hsd0567			;Habilita saidas digitais 0,6 e 7
@@ -123,16 +133,71 @@ pre_espera:	mov r0,adc_stop				;Para o adc
 ;			cmp	r0,contador				;
 ;			jz pre_envio				;Se executou todos os ciclos segue em frente
 ;			jmp espera					;
-;----------envio_de_dados----------------------------------- 
+;----------sinal_externo----------------------------------- 
 pre_envio:	mov	r0,0					;Desliga timer
 			mov	io	(r_cont_st),r0		;
+			mov	extension,r0
+			mov	r0,dc_lsb_ext			;Configura a carga 0 do timer
+			mov	io	(r_c0),r0			;
+			mov	r0,dc_msb_ext			;Configura a carga 1 do timer
+			mov	io	(r_c1),r0			;
+			mvs	r0,0					; Informa que int ext eh bs
+			mov	intext_type,r0			;
 			mov	r0,hab_int_ext0_bs		;Hab. int. externa 0 com borda de subida
 			mov	io	(r_ctrl_int_st),r0	;
-			mov	r0,0b10100000
-			mov	io	(r_io_sd),r0 
-ext_check:	mov	status_int,status_int	
-			jz	ext_check
-			mvs	status_int,esperando 
+			mov	r0,0b10100000			;Informa que esta esperando int
+			mov	io	(r_io_sd),r0 		;
+ext_check:	mov	status_int,status_int	;Verifica se teve int. ext.
+			jz	ext_check				;Caso nao volta a esperar
+			mvs	status_int,esperando	;Caso sim próxima espera
+again:		mvs	r0,0					;Zera contador
+			mov	contador,r0				;
+			mov	r0,hab_timer			;Hablita timer
+			mov	io	(r_cont_st),r0		;
+ext_check2:	mov	status_int,status_int
+			jz	ext_check2
+			mvs	status_int,esperando
+			inc	contador
+			mov	r0,	ciclos_ext
+			cmp	r0, contador
+			jnz ext_check2
+			inc	extension
+			jmp	again
+check_type:	mov	r0,0					;Desliga timer
+			mov	io	(r_cont_st),r0		;
+			mvs	status_int,esperando
+			mvs	r0, 1
+			cmp	extension,r0
+			jz	type_0
+			mvs	r0,2
+			cmp	extension,r0
+			jz	type_1
+			jmp pre_envio
+type_0:		mov	r0,(0x01)
+			rot (0x01),r0
+			mov r0,0b11111110
+			and (0x01),r0
+			mov	r0,0b00000000
+			or	(0x01),r0
+			inc deslocamentos
+			jmp rot_check
+type_1:		mov	r0,(0x01)
+			rot (0x01),r0
+			mov r0,0b11111110
+			and (0x01),r0
+			mov	r0,0b00000001
+			or	(0x01),r0
+			inc deslocamentos  
+			;jmp rot_check
+;rot_check:	mvs	r0,8
+			;cmp	deslocamentos,r0
+			;jnz	pre_envio
+rot_check:	mvs	r0,0
+			mov	deslocamentos,r0
+			mov	r0,(0x02)
+			cmp	(0x01),r0
+			jnz	pre_envio
+;----------envio_de_dados-----------------------------------
 			mov	r0,0x00
 			mov	data_pntr,r0
 check_end:	mov	r0,0xFF
@@ -224,18 +289,19 @@ bit_check:	inc bitcounter
 ;----------fim_de_transmissao-----------------------------------
 end_send:	mov	r0,0					;Desliga timer
 			mov	io	(r_cont_st),r0		;
-			jmp setup
 ;----------interrupcao----------------------------------- 			
 			org	rot_int		;Inicia rotina de interrupcao
 			mov	(mem_r0),r0
 			mov	io	r0,(r_ctrl_int_st)		;Verifica qual a interrupcao
 			cmp r0,int_adc		;Interrupcao no ADC?
 			jz	intadc			;Sim, pula para int do adc
-			cmp	r0,int_timer
-			jz	inttimer
-			cmp	r0,int_ext
-			jz	intext 
-			mov	r0,erro		;Nao, erro.
+			cmp	r0,int_timer	;Interrupcao no Timer?
+			jz	inttimer		;Sim, pula para int do timer
+			cmp	r0,int_ext		;Interrupcao Ext?	
+			jz	intext_select	;Sim, pula para int ext
+			cmp	r0,int_ext_timer;Interrupcao Ext?	
+			jz	intext_select	;Sim, pula para int ext
+			mov	r0,erro			;Nao, erro
 			mov	io	(r_io_sd),r0		;Indica em sd6 erro
 			jmp $		;Loop de  errro
 intadc:		mvs	status_int, interrompeu 
@@ -250,12 +316,29 @@ inttimer:	mvs	status_int,interrompeu
 			mov	io	(r_cont_st),r0
 			mov	r0,(mem_r0)
 			rets
-intext:		mov	(mem_r0),r0
-			mov	r0,des_int_ext0_bs		;Desliga e limpa int ext
+intext_select:	mov	(mem_r0),r0				;Backup memoria
+				mov	r0,0					;Desliga timer
+				mov	io	(r_cont_st),r0		;
+				mov	intext_type,intext_type
+				jz	intextbs
+intextbd:	mov	r0,des_int_ext0			;Desliga e limpa int ext
 			mov	io	(r_ctrl_int_st),r0	;
-			mvs	status_int,interrompeu
-			mov	r0,(mem_r0)
-			rets 
+			mvs	r0,hint
+			mov	r15,r0
+			mvs	status_int,interrompeu	;Informa que interrompeu
+			mov	r0,(mem_r0)				;Recupera memoria
+			jmp	check_type
+intextbs:	mov	r0,des_int_ext0			;Desliga e limpa int ext
+			mov	io	(r_ctrl_int_st),r0	;
+			mvs	r0,1					;Informa int ext bd
+			mov	intext_type,r0			;
+			mov	r0,hab_int_ext0_bd		;Habillita int ext bd
+			mov	io	(r_ctrl_int_st),r0	;
+			mvs	r0,hint
+			mov	r15,r0
+			mvs	status_int,interrompeu	;Informa que interrompeu
+			mov	r0,(mem_r0)				;Recupera memoria
+			jmp ext_check 
 
 
 
