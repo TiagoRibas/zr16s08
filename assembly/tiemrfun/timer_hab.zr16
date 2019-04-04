@@ -1,0 +1,73 @@
+			dv	esperando	=	0
+			dv	interrompeu	=	1  
+			dv	hint_ed	=	0b00000011
+			dv	rot_int	=	0x3C0
+			dv	mem_r0	=	0x00
+			dv	r_ctrl_int_st	=	0x00
+			dv	int_adc	=	0b00000100
+			dv	int_timer	=	0b00001000
+			dv	hab_int_ext0_bs	=	0b00000101
+			dv	des_int_ext0_bs	=	0b00001001
+			dr	status_int	=	r2 			  
+;----------timer---------------------------------------       
+			dv	r_c0	=	0x1C
+			dv	r_c1	=	0x1D
+			dv	r_cont_st	=	0x1E   
+			dv	hab_timer	=	0b10000111
+			dv	hab_timer2	=	0b10000101
+			dv	tempo	=	8	
+			dv	dc_msb	=	sr8(tempo)
+			dv	dc_lsb	=	0x00FF & tempo
+			dv	tempo_troca = 20
+			dv	dc_msb_troca	=	sr8(tempo_troca)
+			dv	dc_lsb_troca	=	0x00FF & tempo_troca
+			dr	contador	=	r5
+			dv	ciclos_data	=	20    
+;----------setup---------------------------------------
+			mvs	status_int,esperando 
+			mov	r0,dc_lsb
+			mov	io	(r_c0),r0
+			mov	r0,dc_msb
+			mov	io	(r_c1),r0 	
+			mov	r0,hab_timer
+			mov	io	(r_cont_st),r0
+			mov	r0,hint_ed
+			mov	r15,r0
+			;mov	r0,0b00000000
+			;mov	io	(r_cont_st),r0
+			mov r0,0
+			mov	r4,r0
+			mov	r0,2
+			mov r1,r0
+			mov r0,0
+loop:		mov status_int,status_int
+			jz	loop
+			mvs r0,esperando
+			mov status_int,r0
+			inc r4
+			cmp r1,r4
+			jnz loop
+			mvs r0,0				;
+			mov io(r_cont_st),r0	;
+			mvs r0,esperando		;
+			mov status_int,r0		;Bloco para alterar carga do timer
+			;mov	r0,dc_lsb_troca		;
+			;mov	io	(r_c0),r0		;
+			;mov	r0,dc_msb_troca		;
+			;mov	io	(r_c1),r0 		;
+			mov	r0,hab_timer2		;
+			mov	io	(r_cont_st),r0	;
+loop2:		mov status_int,status_int
+			jz	loop2
+
+
+			org rot_int
+			mov	io	r0,(r_ctrl_int_st)
+			cmp r0,int_timer
+			jz inttimer
+			jmp $
+inttimer:	mvs r0,interrompeu
+			mov status_int,r0
+			mov	r0,hab_timer
+			mov io(r_cont_st),r0
+			rets

@@ -1,0 +1,193 @@
+;------------------------------------------------------------------------
+;Code: baba_eletronica_emissor.zr16
+;Wrote by: Tiago Ribas Jr
+;28/08/2018 - Criacao do codigo baseado no codigo adctopulse.zr16
+;-----------------zr16---------------------------------------------------
+            dv	device_id	=	0b00101011
+            dr	sensibilidade	=	r4
+            dr	id	=	r5
+            dv	masc_bit_zero	=	0b00000001
+            dr	bitcounter	=	r8
+;-----------------controle_int-------------------------------------------
+            dv	esperando	=	0
+            dv	interrompeu	=	1
+            dr	status_int	=	r1
+            dv	hint	=	0b00000001
+            dv	rot_int	=	0x3C0
+            dv	mem_r0	=	0x00
+            dv	r_ctrl_int_st	=	0x00
+            dv	int_adc	=	0b00000100
+            dv	int_timer	=	0b00001000
+            dv	int_ext	=	0b00000001
+            dv	hab_int0_bs	=	0b00000101
+            dv	des_int0_bs	=	0b00001000
+            dv	int0	=	0b00000001
+;----------------io------------------------------------------------------
+            dv	r_io_hsd	=	0x09
+            dv	r_io_sd	=	0x0A
+            dv	hsd7650	=	0b1110001
+            dv	rodando	=	0b10000000
+            dv	erro	=	0b01000000
+;---------------adc-------------------------------------------------------
+            dv	r_adc_ctrl_st_lsb	=	0x04
+            dv	r_adc_data_msb	=	0x05
+            dv	soc_ch3_int	=	0b00111111
+            dv	adc_stop	=	0b00001111
+            dr	r_byte_superior =	r3
+;---------------timer------------------------------------------------------
+            dv	r_c0	=	0x1C
+            dv	r_c1	=	0x1D
+            dv	r_cont_st	=	0x1E
+            dv	hab_timer	=	0b10000111
+            dv	tempo	=	100
+            dv	dc_msb	=	sr8(tempo)
+            dv	dc_lsb	=	0x00FF  & tempo
+            dr	contador	=   r2
+            dv	ciclos	=	10
+            dr	tempo_high	=	r6
+            dr	tempo_low	=	r7
+;---------------setup------------------------------------------------------
+setup:      mvs	status_int,esperando
+            mov	r0,device_id 
+            mov	id,r0
+            mov	r0,hsd7650
+            mov io	(r_io_hsd), r0
+            mov	r0,rodando
+            mov io	(r_io_sd),r0
+            mov	r0,soc_ch3_int
+            mov io	(r_adc_ctrl_st_lsb),r0
+            mov r0, hab_int0_bs
+            mov io	(r_ctrl_int_st),r0
+            mvs	r15,hint
+;---------------espera_adc------------------------------------------------
+adc_loop:   mov	status_int,status_int
+            jz	adc_loop
+;---------------compara_limite--------------------------------------------
+            mov	r0,4
+            cmp	r0,sensibilidade
+            jz	sens4
+            mov	r0,3
+            cmp	r0,sensibilidade
+            jz	sens3
+            mov	r0,2
+            cmp	r0,sensibilidade
+            jz	sens2
+            mov	r0,1
+            cmp	r0,sensibilidade
+            jz	sens1
+sens0:      mov	r0,0b00000001
+            cmp	r_byte_superior,r0
+            jc  aciona
+sens1:      mov	r0,0b00000010
+            cmp	r_byte_superior,r0
+            jc  aciona
+sens2:      mov	r0,0b00000100
+            cmp	r_byte_superior,r0
+            jc  aciona
+sens3:      mov	r0,0b00001000
+            cmp	r_byte_superior,r0
+            jc  aciona
+sens4:      mov	r0,0b00010000
+            cmp	r_byte_superior,r0
+            jc  aciona
+;-------------aciona_receptor----------------------------------------------
+aciona:     mov	r0,id
+            and r0,masc_bit_zero
+            shl id,id
+            mov	r0,r0
+            jz	pulso_zero
+            jnz	pulso_um
+;-----------configura_pulso-----------------------------------------------
+pulso_zero:	mvs		status_int,esperando		
+			mvs		contador,0
+			mov		r0,10						;Tempo de high do pulso zero
+			mov		tempo_high,r0
+			mov		r0,40						;Tempo de low do pulso zero
+			mov		tempo_low,r0
+			jmp		set_high		
+pulso_um:	mvs		status_int,esperando
+			mvs		contador,0
+			mov		r0,25						;Tempo de high do pulso um
+			mov		tempo_high,r0
+			mov		r0,25						;Tempo de low do pulso um
+			mov		tempo_low,r0
+			jmp		set_high
+;---------------gera_pulso------------------------------------------------
+set_high:	mov	r0,dc_lsb		;Configura a carga 0 do timer
+			mov	io	(r_c0),r0				;
+			mov	r0,dc_msb		;Configura a carga 1 do timer
+			mov	io	(r_c1),r0				;
+			mov 	r0,0b10000001						
+			mov 	io (r_io_sd),r0
+			mvs 	contador,0
+			mov r0,hab_timer			;Habilita timer
+			mov io	(r_cont_st),r0			;												
+loop_high: 	mov		status_int,status_int
+			jz		loop_high
+			inc 	contador						
+			cmp 	tempo_high,contador						
+			jz 		set_low
+			mvs		status_int,esperando							
+			jmp 	loop_high						
+set_low:	mov	r0,0					;Desliga timer
+			mov	io	(r_cont_st),r0		;
+			mov	r0,dc_lsb		;Configura a carga 0 do timer
+			mov	io	(r_c0),r0				;
+			mov	r0,dc_msb		;Configura a carga 1 do timer
+			mov	io	(r_c1),r0				;
+			mov 	r0,0b10000000						
+			mov io 	(r_io_sd),r0
+			mvs 	contador,0
+			mov r0,hab_timer			;Habilita timer
+			mov io	(r_cont_st),r0			;															
+loop_low:	mov		status_int,status_int
+			jz		loop_low
+			inc 	contador								
+			cmp 	tempo_low,contador 						
+			jz 		bit_check
+			mvs		status_int,esperando						
+			jmp 	loop_low
+bit_check:	inc bitcounter
+			mov	r0,8
+			cmp	r0,bitcounter
+			jz	restaura
+			jmp	aciona
+restaura:   mov	r0,0					;Desliga timer
+			mov	io	(r_cont_st),r0		;
+            jmp	setup		
+;---------------interrupcao----------------------------------------------
+            org	rot_int
+            mov	(mem_r0),r0
+            mov io	(r_ctrl_int_st),r0
+            cmp	r0,int_adc
+            jz	intadc
+            cmp	r0,int_timer
+            jz	inttimer
+            cmp	r0,int_ext
+            jz	intext
+            mov	r0,erro
+            mov io	(r_io_sd),r0
+            jmp	$
+intadc:     mov	r0,adc_stop
+            mov io	(r_adc_ctrl_st_lsb),r0
+            mvs	status_int,interrompeu
+            mov io	r0,(r_adc_data_msb)
+            mov	r_byte_superior,r0
+            mov	r0,(mem_r0)
+            rets
+inttimer:   mvs	status_int,interrompeu
+            mov	r0,hab_timer
+            mov io	(r_cont_st),r0
+            mov	r0,(mem_r0)
+            rets
+intext:     mov	r0,des_int0_bs
+            mov io	(r_ctrl_int_st),r0
+            mvs	r15,hint
+            mvs	status_int,interrompeu
+            inc	sensibilidade
+            mvs	r0,5
+            cmp	r0,sensibilidade
+            jz	zerar
+            rets
+zerar:      mvs sensibilidade,0
+            rets

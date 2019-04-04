@@ -1,0 +1,159 @@
+;------------------------------------------------------------------------------
+;Code: baba_eletronica_receptor.zr16
+;Wrote by: Tiago Ribas Jr
+;13/08/2018- Criacao do código baseada no codigo adctopulse.zr16
+;---------------zr16-----------------------------------------------------------
+            dv	device_id	=	0b00101010
+            dv	mem_r0	=	0x00
+            dr	data_size	=	r4
+;---------------controle_de_interrupcao----------------------------------------
+            dv	esperando	=	0
+            dv	interrompeu	=	1
+            dv	hint	=	0x01
+            dv	rot_int	=	0x3C0
+            dv	r_ctrl_int_st	=	0x00
+            dv	int_timer	=	0b00001000
+            dv	int_ext	=	0b00000001
+            dv	int_ext_timer	=	0b00001001
+            dv	hab_int_ext0_bs	=	0b00000101
+            dv	hab_int_ext0_bd	=	0b00000110
+            dv	des_int_ext0	=	0b00001000
+            dv	hab_int_ext1_bs	=	0b01010000
+            dv	des_int_ext1	=	0b10000000
+            dr	status_int	=	r1
+            dr	ext_type   	=	r3
+            dv	descida	=	1
+            dv	subida	=	0
+;---------------io--------------------------------------------------------------
+            dv	r_io_hsd	=	0x09
+            dv	r_io_sd	=	0x0A
+            dv	hsd4567	=	0b11110000
+            dv	rodando	=	0b10000000
+            dv	erro	=	0b00010000
+            dv	wait	=	0b11000000
+            dv	aciona	=	0b10100000
+;---------------timer-----------------------------------------------------------
+            dv	r_c0	=	0x1C
+            dv	r_c1	=	0x1D
+            dv	r_cont_st	=	0x1E
+            dv	hab_timer	=	0b10000111
+            dv	des_timer	=	0
+            dr	contador	=	r2
+            dv	tempo	=	100
+            dv	c_msb	=	sr8(tempo)
+            dv	c_lsb	=	0x00FF & tempo
+            dv	ciclos_sgnl	=	90
+;----------------setup-------------------------------------------------------------
+setup:      mvs	status_int,esperando
+            mov	r0,device_id
+            mov	(0x01),r0
+            mvs	contador,0
+            mov	r0,hsd4567
+            mov io	(r_io_hsd),r0
+            mov	r0,rodando
+            mov io	(r_io_sd),r0
+            mvs	r0,hint
+            mov	r15,r0
+;---------------espera_chamado-----------------------------------------------------
+pre_check:  mov	r0,c_lsb
+            mov io	(r_c0),r0
+            mov	r0,c_msb
+            mov io	(r_c1),r0
+            mvs	ext_type,subida
+            mov r0,wait
+            mov io	(r_io_sd),r0
+            mov	r0,hab_int_ext0_bs 
+            mov io	(r_ctrl_int_st),r0
+            mvs	status_int,esperando
+ext_check:  mov	status_int,status_int 
+            jz	ext_check
+            mvs	status_int,esperando
+pre_read:   mvs	contador,0
+            mov	r0,hab_timer
+            mov io	(r_cont_st),r0
+sgnl_read:  mov	status_int,status_int
+            jz	sgnl_read
+            mvs	status_int,esperando
+            inc contador
+            mov	r0,ciclos_sgnl
+            cmp	r0,contador
+            jnz	sgnl_read
+            inc data_size
+            jmp	pre_read
+check_type: mvs	r0,des_timer
+            mov io	(r_cont_st),r0
+            mvs	status_int,esperando
+            mvs	r0,1
+            cmp	data_size,r0
+            jz	type_0
+            mvs	r0,2
+            cmp	data_size,r0
+            jz	type_1
+            jmp	pre_check
+type_0:     mov	r0,(0x02)
+            rot (0x02),r0
+            mov	r0,0b11111110
+            and (0x02),r0
+            jmp id_check
+type_1:     mov	r0,(0x02)
+            rot (0x02),r0
+            mov	r0,0b11111110
+            and (0x02),r0
+            mov	r0,0b00000001
+            or  (0x02),r0
+id_check:   mov	r0,(0x01)
+            cmp	(0x02),r0
+            jnz	pre_check
+;---------------alarme-------------------------------------------------------------
+acionar:    mov	r0,aciona
+            mov io	(r_io_sd),r0
+            mov r0,hab_int_ext1_bs
+            mov io  (r_ctrl_int_st),r0
+ext_check2: mov status_int,status_int
+            jz  ext_check2
+desligar:   mov r0,des_int_ext1
+            mov io  (r_ctrl_int_st),r0
+            mov r0,esperando
+            mov io  (r_io_sd),r0
+            mvs r15,hint
+            jmp pre_check
+;----------------interrupcao--------------------------------------------------------
+            org rot_int
+            mov	(mem_r0),r0
+            mov io	r0,(r_ctrl_int_st)
+            cmp	r0,int_timer
+            jz	inttimer
+            cmp	r0,int_ext
+            jz	intexttype
+            cmp	r0,int_ext_timer
+            jz	intexttype
+            mov	r0,erro
+            mov io	(r_io_sd),r0
+            jmp	$
+inttimer:   mvs	status_int,interrompeu
+            mov	r0,hab_timer
+            mov io	(r_cont_st),r0
+            mov	r0,(mem_r0)
+            rets
+intexttype: mvs	r0,0
+            mov io	(r_cont_st),r0
+            mov	ext_type,ext_type
+            jz	intextbs
+intextbd:   mov	r0,des_int_ext0
+            mov io	(r_ctrl_int_st),r0
+            mvs	status_int,interrompeu
+            mvs	r15,hint
+            jmp	check_type
+intextbs:   mov	r0,des_int_ext0
+            mov io	(r_ctrl_int_st),r0
+            mvs	ext_type,descida
+            mvs	status_int,interrompeu
+            mov	r0,hab_int_ext0_bd
+            mov io	(r_ctrl_int_st),r0
+            mvs	r15,hint
+            mov	r0,(mem_r0)
+            rets
+            
+
+
+

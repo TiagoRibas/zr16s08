@@ -1,0 +1,10 @@
+
+					dv		zero 	= 0
+					dv		um		= 1
+
+teste:				mov		r0,zero
+					mov 	r1,r0
+					mov 	r0,um
+					mov 	r2,r0
+					mov 	r2,r1
+					jmp		teste

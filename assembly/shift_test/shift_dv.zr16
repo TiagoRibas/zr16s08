@@ -1,0 +1,12 @@
+dv	store = 0x0000
+dv	data1	=	0b10101111
+dv	data2	=	0b01010011
+mvs	r15,0b00000011 
+mov	r0,data1
+shl	r0,r0
+shl	r0,r0
+shl	r0,r0
+shl	r0,r0
+shl	r0,r0
+shl	r0,r0
+shl	r0,r0

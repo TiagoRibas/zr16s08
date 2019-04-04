@@ -1,0 +1,20 @@
+		mvs r1,0
+		mov	r0,0b00000101
+		mov	io	(0x00),r0
+		mvs	r0,1
+		mov	r15,r0
+loop:	mov	r1,r1
+		jz	loop
+		mov	r0,0b00000001
+		mov	io	(0x09),r0
+		mov	r0,0b00000001
+		mov	io	(0x0A),r0  
+
+
+		org 0x3C0 
+		mov	r0,0b00001000	;desabilita e limpa int
+		mov	io	(0x00),r0
+		mov	r0,1
+		mov	r1,r0
+
+		rets

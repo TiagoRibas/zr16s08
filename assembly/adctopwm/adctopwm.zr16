@@ -1,0 +1,86 @@
+			dr		r_byte_inferior = r3			;Byte inferior do adc
+			dr		r_byte_superior = r4			;Byte superior do adc
+			dr		r_controle_int	= r5			;Status de interrupcao
+			dv		hint			= 0b00000001	;Habilita bit hint
+			dv		rot_int 		= 0x3C0			;Comeco da rotina de int.
+			dr 		conv_end		= r10
+;-----------controle_de_interrupcao-----------------------------------------
+			dv		r_int_st		= 0x00			;Registrador de status de int.
+			dv		int_adc			= 0b00000100	;Status de int no adc
+			dv		int_timer		= 0b00001000	;Status de int no timer
+;-----------io--------------------------------------------------
+			dv		r_io_hsd		= 0x09			;Registrador de hab. de saidas digitais
+			dv		r_io_sd 		= 0x0A			;Registrador de valor de saidas digitais
+			dv		hsd76210		= 0b11000111	;Habilitar SD7,6,2,1,0
+			dv		rodando			= 0b10000000	;SD7->Rodando
+			dv		erroint			= 0b11000000	;SD6->Erro
+;-----------adc--------------------------------------------------
+			dv		r_adc_ctrl_sta_lsb	= 0x04			;Reg. de controle do ADC e lsb
+			dv		r_adc_data_msb		= 0x05			;Reg. de msb do ADC
+			dv		soc_ch3_int			= 0b00111111	;Hab. CH3
+			dv		adc_stop			= 0b00001111	;Comando de parar ADC
+			dv		masc_bit_inf		= 0b00000011	;Mascara para bit inf do ADC (desnecessario)
+			dv		masc_bit_zero		= 0b00000001	;Mascara de bit zero para dados do ADC
+			dr		bit_cont			= r6			;Contador de bit que foi analizado
+;-----------timer-------------------------------------------------
+			dv		r_c0			= 0x1C				;Reg. carga zero
+			dv		r_c1			= 0x1D				;Reg  carga um
+			dv		r_cont_st		= 0x1E				;Reg. status do down counter
+			dv		h_tir			= 0b10000111		;Habilitacao de contador
+			dv		tempo			= 100				;Ciclos a serem efetuados numa contagem
+			dv		dc_msb			= sr8(tempo)		;msb
+			dv		dc_lsb			= 0x00FF & tempo	;lsb
+			dr		contador		= r7				;Contador a ser incrementado
+			dr		tempo_high		= r8				;Tempo de high 
+			dr		tempo_low		= r9				;Tempo de low 
+;-------------------------------------------------------------------
+			mov		r0,hsd76210					;Habilitar saídas digitais
+			mov	io 	(r_io_hsd),r0				;
+			mov		r0,rodando 					;Indica que esta rodando
+			mov	io 	(r_io_sd),r0				;
+			mov		r0,dc_lsb					;Carrega carga 0
+			mov	io 	(r_c0),r0					;
+			mov		r0,dc_msb					;Carrega carga 1
+			mov	io	(r_c1),r0					;
+			mvs		r_controle_int,0			;Status->Esperando Int.
+			mvs		r15,hint					;Hab. int no microprocessador
+			mov		r0,soc_ch3_int				;configura para ADC ch3
+			mov io	(r_adc_ctrl_sta_lsb),r0		;Ativa ADC
+;----------rotina_de_espera_do_adc-----------------------------------
+adc_check:	mov 	r_controle_int,r_controle_int	;Aguarda interrupcao
+			jz		adc_check						;Se nao interrompeu verifica de novo
+;-----------gera_pwm------------------------------------------------
+								
+;-----------interrupcao----------------------------------------------
+			org		rot_int
+			mov	io	r0,(r_int_st)	;Verificar tipo de interrupcao
+			cmp		r0,int_adc		;Eh no ADC?
+			jz		intadc			;Sim, vai para a interrupcao do adc
+			mov	io	r0,(r_int_st)	;Verifica o tipo de interrupcao
+			cmp		r0,int_timer		;Eh no timer?
+			jz		inttimer		;Sim, vai para a interrupcao do timer
+			mov		r0,erroint		;Nao eh Timer nem ADC
+			mov	io	(r_io_sd),r0	;Indica erro 
+			jmp		$				;Loop infinito
+intadc:		mvs		r_controle_int,1				;Status->Interrompeu
+			mov     r0,r_adc_ctrl_sta_lsb           ; Le os dados do ADC
+            mvs     r_byte_inferior,masc_bit_inf	;
+			and     r_byte_inferior,r0              ;
+			mov io  r0,(r_adc_data_msb)				;
+			mov     r_byte_superior,r0				;
+			mov     r0,adc_stop          			;Para conversao do ADC
+			mov	io	(r_adc_ctrl_sta_lsb),r0			;
+			mov		r0,h_tir						;Ativa down counter
+			mov	io	(r_cont_st),r0					;
+			rets									;Retorna ao codigo
+inttimer:	mov     conv_end,conv_end
+			jnz		restart		
+			mvs 	r_controle_int,1				;	
+			mov		r0,h_tir
+			mov	io	(r_cont_st),r0
+			rets		
+restart:	mov		r0,0b00000000						;Para o timer
+			mov	io	(r_cont_st),r0						;
+			mov		r0,soc_ch3_int						;configura para ADC ch3
+			mov io	(r_adc_ctrl_sta_lsb),r0				;Ativa ADC
+			rets

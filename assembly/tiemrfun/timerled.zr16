@@ -1,0 +1,73 @@
+;------------------------------------------	ZR16 --------------------------------------------------------------------------------------------
+					dv 		hab_int 	= 0b00000001		; Habilita de interrupção no ZR16
+					dv 		rot_int  	= 0x3C0				; Rotina de interrupção
+;------------------------------------ 	Interrupt - CTRL ------------------------------------------------------------------------------------
+					dv      reg_intst  	= 0x00				; Registrador de Status do Interrupt
+					dv      inttimer	= 0b00001000		; bit que sinaliza a interrupção do timer
+					dv		esperaint	= 0					; esperando int
+					dv		inttimerok  = 1					; info de int ok
+					dv		interro		= 2					; info de int com erro
+;------------------------------------------	IO - CTRL ---------------------------------------------------------------------------------------
+					dv		hab_sd760	= 0b11000001		; Habilitação das saídas digitais 7,6, e 0
+					dv		reg_hsd		= 0x09				; Reg. de habilitação das saídas digitais no IO-CTRL
+					dv		reg_sd		= 0x0A				; Reg. saída digital 7 a 0  no 	IO-CTRL
+					dv		rodando		= 0b10000000		; Rodando a rotina, SD7=1
+					dv      erroint		= 0b11000000		; Erro na interrupção, (SD7=1 e SD6=1)
+					dv		ligdeslsd0  = 0b00000001        ; Mascara para ligar e desligar sd0
+;------------------------------------------ Timer --------------------------------------------------------------------------------------------					
+					dv		reg_c0		= 0x1c				; Reg. Carga0 do Down Counter
+					dv		reg_c1		= 0x1D				; Reg. Carga1 do Down Counter
+					dv		reg_cont_st	= 0x1E				; Reg. Controle do Down Counter e Status
+					dv		h_tir		= 0b10000111    	; Habilitação do Down Counter, da interrupção, e da carga automática, desligando pz_mem se estiver ligado
+					dv      tempo 		= 8;50000			; tempo= 0.05 s (8 usado para reduzir o tempo para testes, valor mínimo possível)
+					dv      dc_msb		= sr8(tempo)		; Byte MSB para o Down Counter
+					dv		dc_lsb		= 0x00FF & tempo	; Byte LSB para o Down Counter ( "0xFF &" só para evitar warning)
+					dv      tmp_1s      = 2;20				; Número de incrementos de 0.05s para obter 1s. (2 usado para reduzir o tempo de teste)
+;-----------------------------------------------------------------------------------------------------------------------------------------------
+					mvs		r1,esperaint					; r1: msg da interrupção
+					mvs 	r2,0 							; r2: contador de tempo (incrementos e 0,05s) - zerado
+					mvs		r3,tmp_1s                       ; r3: limite da contagem de tempo
+					mov 	r0,hab_sd760					; Habilita as saídas digitais 7,6,0
+					mov io 	(reg_hsd),r0
+					mov		r0,rodando						; Informa que esta rodando ligando SD7
+					or  io  (reg_sd),r0
+					mov 	r0,dc_lsb						; Reg_carga1 do  Down Counter <-  LSB 
+					mov io 	(reg_c0),r0
+					mov 	r0,dc_msb						; Reg_carga1 do Down Counter <- MSB
+					mov io 	(reg_c1),r0 
+					mvs 	r15,hab_int  					; Habilita int do ZR16
+					mov 	r0,h_tir 						; Habilita: contagem, interrrupçao e recarga automática no reg. cont. do Down Counter   
+					mov io 	(reg_cont_st),r0 				
+espera: 			mov		r1,r1							; Ocorreu uma interrupção?
+					jz		espera                          ; Não
+					mvs     r0,inttimerok					; Sim, a interrupção é só a do timer?
+					cmp		r1,r0							; 
+					jz      cont_timer_int					; Sim.
+					jmp     erro							; Não, erro
+
+cont_timer_int: 	mvs		r1,esperaint
+					inc 	r2								; Incrementa a contagem de tempo
+					cmp 	r3,r2 							; Passou um segundo?
+					jz 		one_sec							; Sim
+					jmp 	espera							; Não
+
+one_sec:            mov 	r0,ligdeslsd0					; Complementa sd0
+					xor 	io (reg_sd),r0
+					mvs 	r2,0							; Zera o contador de tempo
+					jmp 	espera
+; ------------------ Rotina de erro 1: Erro na interrupção -------------------------------------------------------------------------------------------
+erro: 	            mov		r0,erroint						; SD7 = 1 e SD6=1 (erro )
+					and io	(reg_sd),r0 	
+        			jmp     $       						; fica aqui
+; ------------------ Atendimento de interrupção ------------------------------------------------------------------------------------------------------
+					org 	rot_int
+					mov io 	r0,(reg_intst) 					; Verifique a interrupção
+					cmp     r0,inttimer						; É só a interrupção do timer?
+					jz      intok							; Sim
+					mvs     r1,interro						; Não, informa o erro e retorna com as interrupções desabilitadas
+					ret
+intok:				mov		r0,0b10000000						; Desliga pz_mem	
+					mov io	(reg_cont_st),r0
+					mvs		r1,inttimerok					; Informa intok
+					rets					
+					

@@ -1,0 +1,14 @@
+mov		r2,20
+mov		r0,0b1111111
+mov		r1,r0
+mov		r0,0b1100111
+mov		r2,r0
+mov		r0,0b1111101
+mov		r3,r0
+mov		r0,0b1111100
+mov		r4,r0
+mov		r0,0b0000011
+and		r1,r0
+and		r2,r0
+and		r3,r0
+and		r4,r0
