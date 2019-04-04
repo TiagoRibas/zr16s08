@@ -1,5 +1,4 @@
 ;----------------------------------------------------- 
-;STATUS - FUNCIONAL
 ;Code: adctopulse3.zr16
 ;Made by: Tiago Ribas e Michel Rodrigues
 ;This version implements a way to read the ADC and 
@@ -11,17 +10,17 @@
 ;v5- Implementation of timing between data
 ;v6- Implementation of receiving data mode at the end
 ;v7- Time between each 8 bits transmitted
-;v7b- Otimizacao da leitura de id externa
-;17/11/2017 - tiago.trj@gmail.com
+;v8- Removida parte do adc para testar envio de valores fixos
+;14/11/2017 - tiago.trj@gmail.com
 ;------------------zr16-------------------------------
-			dv	devide_id	=	0b11110001		;Identificacao do dispositivo
+			dv	devide_id	=	0b00101010		;Identificacao do dispositivo
 			dr	data_pntr	=	r1  			;Reg. de posicao do ponteiro de dados
 			dr	data_from_pntr	=	r4 			;
 			dr	bitcounter	=	r8 
 ;----------controle_de_interupcao---------------------
 			dv	esperando	=	0				;Status de interrupcao esperando
 			dv	interrompeu	=	1  				;Status de interrupcao interrompeu
-			dv	hint	=	0b00000011			;Bit hint
+			dv	hint	=	0b00000001			;Bit hint
 			dv	rot_int	=	0x3C0				;Endereco de rotina de interrupcao
 			dv	mem_r0	=	0x00				;Endereco de backup de r0
 			dv	r_ctrl_int_st	=	0x00		;Reg. controle de interrupcao
@@ -60,13 +59,10 @@
 			dv	tempo_espera	=	1000		            ; 1ms (1000)
 			dv	dc_msb_espera	=	sr8(tempo_espera)		;
 			dv	dc_lsb_espera	=	0x00FF & tempo_espera	;
-			dv	tempo_timeout 	= 	50000					;50ms (50000)
-			dv	dc_msb_timeout	=	sr8(tempo_timeout)		;
-			dv	dc_lsb_timeout	=	0x00FF & tempo_timeout	;
 			dr	contador	=	r5		;Resgistrador contador de loops do timer
 			dv	ciclos_data	=	10    	;Ciclos a serem efetuados pelo timer
 			dv	ciclos_espera	=	25
-			dv	ciclos_ext	=	90	
+			dv	ciclos_ext	=	95	
 			dv	ciclos_send	=	50  
 			dr	tempo_high	=	r6
 			dr	tempo_low	=	r7
@@ -78,7 +74,7 @@ setup:		mvs	status_int,esperando	;Informa que o dispositivo espera por uma inter
 			mov	r0,devide_id
 			mov	(0x02),r0 			;Identifica o dispositivo
 			mov	r0,0x03
-			mov	data_pntr,r0		;Começa na posição 0x03 da memória 
+			mov	data_pntr,r0		;Começa na posição zero da memória 
 			mvs contador,0			;Carrega 0 no contador
 			mov	r0,hsd0567			;Habilita saidas digitais 0,6 e 7
 			mov	io	(r_io_hsd),r0	;
@@ -88,18 +84,12 @@ setup:		mvs	status_int,esperando	;Informa que o dispositivo espera por uma inter
 			mov	io	(r_c0),r0 		;
 			mov	r0,dc_msb			;Carrega a carga 1
 			mov	io	(r_c1),r0		;
-			mov	r0,soc_ch3_int		;Comeca conversao do ADC
-			mov	io	(r_adc_ctrl_st_lsb),r0	;
 			mov	r0,hint				;Habilita interrupcao
 			mov	r15,r0				;
-;----------espera_adc----------------------------------- 
-adc_check:	mov	status_int,status_int	;Verifica se houve int. do adc
-			jz	adc_check				;Caso nao ocorra retorna a verificar
 ;----------armazenamento_de_dados------------------------------------
-check_pntr:	mov	(data_pntr),r_byte_superior	;Carrega o byte superior do adc na SRAM
+check_pntr:	mov	r0,0b00010111
+            mov	(data_pntr),r0	;Carrega o byte superior do adc na SRAM
 			inc data_pntr		;Incrementa o pointer da SRAM
-			mov r0,adc_stop				;Para o adc
-			mov io	(r_adc_ctrl_st_lsb),r0	;
 			mov	r0,hab_timer		;Liga timer
 			mov	io	(r_cont_st),r0 	;
 			mvs	status_int,esperando	;Requisita interrupcao
@@ -114,15 +104,11 @@ loop_data:	mov	status_int,status_int	;Verifica se ocorreu interrupcao
 			mov	io	(r_cont_st),r0		;
 			mov	r0,0
 			mov	contador,r0
-			mov	r0,0x04			;Verifica se a memória está cheia
+			mov	r0,0xFF			;Verifica se a memória está cheia
 			cmp	r0,data_pntr	;
 			jz	pre_espera		;Caso memória cheia espera para enviar dados
-			mov	r0,soc_ch3_int				;Liga o ADC
-			mov	io	(r_adc_ctrl_st_lsb),r0	;
-			jmp	adc_check					;Volta a esperar pela interrupcao do adc
-pre_espera:	mov r0,adc_stop				;Para o adc
-			mov io	(r_adc_ctrl_st_lsb),r0	;
-			mvs r0,esperando			;Esperando por interrupcao
+			jmp	check_pntr					;Volta a esperar pela interrupcao do adc
+pre_espera:	mvs r0,esperando			;Esperando por interrupcao
 			mov status_int,r0			;
 			mov	r0,dc_lsb_espera		;Configura a carga 0 do timer
 			mov	io	(r_c0),r0				;
@@ -137,41 +123,28 @@ pre_espera:	mov r0,adc_stop				;Para o adc
 ;			inc contador				;Incrementa o contador
 ;			mov r0,ciclos_espera		;Compara com os ciclos desejados
 ;			cmp	r0,contador				;
-;			jz clear_id					;Se executou todos os ciclos segue em frente
+;			jz pre_envio				;Se executou todos os ciclos segue em frente
 ;			jmp espera					;
-;----------sinal_externo-----------------------------------
-clear_id:	mov	r0,0
-			mov	(0x01),r0
-			mov	deslocamentos,r0
+;----------sinal_externo----------------------------------- 
 pre_envio:	mov	r0,0					;Desliga timer
 			mov	io	(r_cont_st),r0		;
 			mov	extension,r0
-			mov	r0,dc_lsb_timeout		;Configura a carga 0 do timer
-			mov	io	(r_c0),r0			;
-			mov	r0,dc_msb_timeout		;Configura a carga 1 do timer
-			mov	io	(r_c1),r0			;
-			mov	r0,0b10100000			;Informa que esta esperando int via led sd6
-			mov	io	(r_io_sd),r0 		;
-			mvs	r0,0					; Informa que int ext eh bs
-			mov	intext_type,r0			;
-			mov	r0,hab_int_ext0_bs		;Hab. int. externa 0 com borda de subida
-			mov	io	(r_ctrl_int_st),r0	;
-			mov	r0,hab_timer			;aciona um timer de um ciclo de 50ms
-			mov io	(r_cont_st),r0
-ext_check:	mov	status_int,status_int	;Verifica se teve int. ext.
-			jz	ext_check				;Caso nao volta a esperar
-			mvs	status_int,esperando	;Caso sim próxima espera
-			mov	intext_type,intext_type	;verifica se a interrupcao foi da borda
-			jnz	again					;foi vai pra again
-			jmp	clear_id				;fechou o timer vai pra clear_id 
-again:		mvs	r0,0					;
-			mov	(r_cont_st),r0			;Desliga timer
-			mov	contador,r0				;Zera contador
 			mov	r0,dc_lsb_ext			;Configura a carga 0 do timer
 			mov	io	(r_c0),r0			;
 			mov	r0,dc_msb_ext			;Configura a carga 1 do timer
 			mov	io	(r_c1),r0			;
-			mov	r0,hab_timer			;Habilita timer
+			mvs	r0,0					; Informa que int ext eh bs
+			mov	intext_type,r0			;
+			mov	r0,hab_int_ext0_bs		;Hab. int. externa 0 com borda de subida
+			mov	io	(r_ctrl_int_st),r0	;
+			mov	r0,0b10100000			;Informa que esta esperando int
+			mov	io	(r_io_sd),r0 		;
+ext_check:	mov	status_int,status_int	;Verifica se teve int. ext.
+			jz	ext_check				;Caso nao volta a esperar
+			mvs	status_int,esperando	;Caso sim próxima espera
+again:		mvs	r0,0					;Zera contador
+			mov	contador,r0				;
+			mov	r0,hab_timer			;Hablita timer
 			mov	io	(r_cont_st),r0		;
 ext_check2:	mov	status_int,status_int
 			jz	ext_check2
@@ -191,7 +164,7 @@ check_type:	mov	r0,0					;Desliga timer
 			mvs	r0,2
 			cmp	extension,r0
 			jz	type_1
-			jmp clear_id
+			jmp pre_envio
 type_0:		mov	r0,(0x01)
 			rot (0x01),r0
 			mov r0,0b11111110
@@ -199,7 +172,7 @@ type_0:		mov	r0,(0x01)
 			mov	r0,0b00000000
 			or	(0x01),r0
 			inc deslocamentos
-			jmp rot_check8 ; original rot_check
+			jmp rot_check
 type_1:		mov	r0,(0x01)
 			rot (0x01),r0
 			mov r0,0b11111110
@@ -208,14 +181,16 @@ type_1:		mov	r0,(0x01)
 			or	(0x01),r0
 			inc deslocamentos  
 			;jmp rot_check
-rot_check8:	mvs	r0,8
-			cmp	deslocamentos,r0
-			jnz	pre_envio
-rot_check:	mov	r0,(0x02)
+;rot_check:	mvs	r0,8
+			;cmp	deslocamentos,r0
+			;jnz	pre_envio
+rot_check:	mvs	r0,0
+			mov	deslocamentos,r0
+			mov	r0,(0x02)
 			cmp	(0x01),r0
-			jnz	clear_id
+			jnz	pre_envio
 ;----------envio_de_dados-----------------------------------
-			mov	r0,0x01
+			mov	r0,0x00
 			mov	data_pntr,r0
 check_end:	mov	r0,0xFF
 			cmp	data_pntr,r0
@@ -329,8 +304,6 @@ end_send:	mov	r0,0					;Desliga timer
 			org	rot_int		;Inicia rotina de interrupcao
 			mov	(mem_r0),r0
 			mov	io	r0,(r_ctrl_int_st)		;Verifica qual a interrupcao
-			cmp r0,int_adc		;Interrupcao no ADC?
-			jz	intadc			;Sim, pula para int do adc
 			cmp	r0,int_timer	;Interrupcao no Timer?
 			jz	inttimer		;Sim, pula para int do timer
 			cmp	r0,int_ext		;Interrupcao Ext?	
@@ -340,13 +313,6 @@ end_send:	mov	r0,0					;Desliga timer
 			mov	r0,erro			;Nao, erro
 			mov	io	(r_io_sd),r0		;Indica em sd6 erro
 			jmp $		;Loop de  errro
-intadc:		mvs	status_int, interrompeu 
-			mov	io	r0,(r_adc_data_msb)
-			mov	r_byte_superior,r0
-			mov	r0,adc_stop
-			mov	io	(r_adc_ctrl_st_lsb),r0
-			mov	r0,(mem_r0) 
-			rets
 inttimer:	mvs	status_int,interrompeu
 			mov	r0,hab_timer
 			mov	io	(r_cont_st),r0
