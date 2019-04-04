@@ -14,7 +14,7 @@ setup:	mvs r2,0x0 ;var esperando
 			mov io (0x1D),r0 ;var r_c1
 			mov r0,0x3F ;var soc_ch3_int
 			mov io (0x4),r0 ;var r_adc_ctrl_st_lsb
-			mov r0,0x1 ;var hint
+			mov r0,0x3 ;var hint
 			mov r15,r0
 adc_check:	mov r2,r2
 			jz 0x12 ;label adc_check
@@ -52,45 +52,56 @@ pre_espera:	mov r0,0xF ;var adc_stop
 			mov io (0x1D),r0 ;var r_c1
 clear_id:	mov r0,0x0
 			mov (0x1),r0
+			mov r11,r0
 pre_envio:	mov r0,0x0
 			mov io (0x1E),r0 ;var r_cont_st
 			mov r9,r0
-			mov r0,0x64 ;var dc_lsb_ext
+			mov r0,0x50 ;var dc_lsb_timeout
 			mov io (0x1C),r0 ;var r_c0
-			mov r0,0x0 ;var dc_msb_ext
+			mov r0,0xC3 ;var dc_msb_timeout
 			mov io (0x1D),r0 ;var r_c1
+			mov r0,0xA0
+			mov io (0xA),r0 ;var r_io_sd
 			mvs r0,0x0
 			mov r10,r0
 			mov r0,0x5 ;var hab_int_ext0_bs
 			mov io (0x0),r0 ;var r_ctrl_int_st
-			mov r0,0xA0
-			mov io (0xA),r0 ;var r_io_sd
+			mov r0,0x87 ;var hab_timer
+			mov io (0x1E),r0 ;var r_cont_st
 ext_check:	mov r2,r2
-			jz 0x43 ;label ext_check
+			jz 0x46 ;label ext_check
 			mvs r2,0x0 ;var esperando
+			mov r10,r10
+			jnz 0x4C ;label again
+			jmp 0x34 ;label clear_id
 again:	mvs r0,0x0
+			mov (0x1E),r0 ;var r_cont_st
 			mov r5,r0
+			mov r0,0x64 ;var dc_lsb_ext
+			mov io (0x1C),r0 ;var r_c0
+			mov r0,0x0 ;var dc_msb_ext
+			mov io (0x1D),r0 ;var r_c1
 			mov r0,0x87 ;var hab_timer
 			mov io (0x1E),r0 ;var r_cont_st
 ext_check2:	mov r2,r2
-			jz 0x4A ;label ext_check2
+			jz 0x55 ;label ext_check2
 			mvs r2,0x0 ;var esperando
 			inc r5
 			mov r0,0x5A ;var ciclos_ext
 			cmp r0,r5
-			jnz 0x4A ;label ext_check2
+			jnz 0x55 ;label ext_check2
 			inc r9
-			jmp 0x46 ;label again
+			jmp 0x4C ;label again
 check_type:	mov r0,0x0
 			mov io (0x1E),r0 ;var r_cont_st
 			mvs r2,0x0 ;var esperando
 			mvs r0,0x1
 			cmp r9,r0
-			jz 0x5D ;label type_0
+			jz 0x68 ;label type_0
 			mvs r0,0x2
 			cmp r9,r0
-			jz 0x65 ;label type_1
-			jmp 0x36 ;label pre_envio
+			jz 0x70 ;label type_1
+			jmp 0x34 ;label clear_id
 type_0:	mov r0,(0x1)
 			rot (0x1),r0
 			mov r0,0xFE
@@ -98,7 +109,7 @@ type_0:	mov r0,(0x1)
 			mov r0,0x0
 			or (0x1),r0
 			inc r11
-			jmp 0x6C ;label rot_check8
+			jmp 0x77 ;label rot_check8
 type_1:	mov r0,(0x1)
 			rot (0x1),r0
 			mov r0,0xFE
@@ -108,30 +119,28 @@ type_1:	mov r0,(0x1)
 			inc r11
 rot_check8:	mvs r0,0x8
 			cmp r11,r0
-			jnz 0x36 ;label pre_envio
-rot_check:	mvs r0,0x0
-			mov r11,r0
-			mov r0,(0x2)
+			jnz 0x37 ;label pre_envio
+rot_check:	mov r0,(0x2)
 			cmp (0x1),r0
 			jnz 0x34 ;label clear_id
 			mov r0,0x1
 			mov r1,r0
 check_end:	mov r0,0xFF
 			cmp r1,r0
-			jz 0xDD ;label end_send
+			jz 0xE6 ;label end_send
 			mov r0,0x0
 			mov r8,r0
 			mov r5,r0
 			mov r0,0x87 ;var hab_timer
 			mov io (0x1E),r0 ;var r_cont_st
 loop_send:	mov r2,r2
-			jz 0x7E ;label loop_send
+			jz 0x87 ;label loop_send
 			mvs r2,0x0 ;var esperando
 			inc r5
 			mov r0,0x32 ;var ciclos_send
 			cmp r0,r5
-			jz 0x86 ;label reload
-			jmp 0x7E ;label loop_send
+			jz 0x8F ;label reload
+			jmp 0x87 ;label loop_send
 reload:	mov r0,0x0
 			mov io (0x1E),r0 ;var r_cont_st
 			mov r0,0xE8 ;var dc_lsb_espera
@@ -145,22 +154,22 @@ bit_brush:	mov r0,r4
 			and r0,0x1 ;var masc_bit_zero
 			shl r4,r4
 			mov r0,r0
-			jz 0x95 ;label pulso_zero
-			jnz 0x9C ;label pulso_um
+			jz 0x9E ;label pulso_zero
+			jnz 0xA5 ;label pulso_um
 pulso_zero:	mvs r2,0x0 ;var esperando
 			mvs r5,0x0
 			mov r0,0xA
 			mov r6,r0
 			mov r0,0x28
 			mov r7,r0
-			jmp 0xA3 ;label set_high
+			jmp 0xAC ;label set_high
 pulso_um:	mvs r2,0x0 ;var esperando
 			mvs r5,0x0
 			mov r0,0x19
 			mov r6,r0
 			mov r0,0x19
 			mov r7,r0
-			jmp 0xA3 ;label set_high
+			jmp 0xAC ;label set_high
 set_high:	mov r0,0xE8 ;var dc_lsb_espera
 			mov io (0x1C),r0 ;var r_c0
 			mov r0,0x3 ;var dc_msb_espera
@@ -171,12 +180,12 @@ set_high:	mov r0,0xE8 ;var dc_lsb_espera
 			mov r0,0x87 ;var hab_timer
 			mov io (0x1E),r0 ;var r_cont_st
 loop_high:	mov r2,r2
-			jz 0xAC ;label loop_high
+			jz 0xB5 ;label loop_high
 			inc r5
 			cmp r6,r5
-			jz 0xB3 ;label set_low
+			jz 0xBC ;label set_low
 			mvs r2,0x0 ;var esperando
-			jmp 0xAC ;label loop_high
+			jmp 0xB5 ;label loop_high
 set_low:	mov r0,0x0
 			mov io (0x1E),r0 ;var r_cont_st
 			mov r0,0xE8 ;var dc_lsb_espera
@@ -189,17 +198,17 @@ set_low:	mov r0,0x0
 			mov r0,0x87 ;var hab_timer
 			mov io (0x1E),r0 ;var r_cont_st
 loop_low:	mov r2,r2
-			jz 0xBE ;label loop_low
+			jz 0xC7 ;label loop_low
 			inc r5
 			cmp r7,r5
-			jz 0xC5 ;label bit_check
+			jz 0xCE ;label bit_check
 			mvs r2,0x0 ;var esperando
-			jmp 0xBE ;label loop_low
+			jmp 0xC7 ;label loop_low
 bit_check:	inc r8
 			mov r0,0x8
 			cmp r0,r8
-			jz 0xCA ;label pre_loop8
-			jmp 0x8F ;label bit_brush
+			jz 0xD3 ;label pre_loop8
+			jmp 0x98 ;label bit_brush
 pre_loop8:	mov r0,0x0
 			mov io (0x1E),r0 ;var r_cont_st
 			mov r0,0xE8 ;var dc_lsb_espera
@@ -212,24 +221,15 @@ pre_loop8:	mov r0,0x0
 			mov r0,0x87 ;var hab_timer
 			mov io (0x1E),r0 ;var r_cont_st
 loop_8bit:	mov r2,r2
-			jz 0xD5 ;label loop_8bit
+			jz 0xDE ;label loop_8bit
 			inc r5
 			cmp r7,r5
-			jz 0x76 ;label check_end
+			jz 0x7F ;label check_end
 			mov r0,0x0
 			mov io (0x1E),r0 ;var r_cont_st
-			jmp 0xD5 ;label loop_8bit
+			jmp 0xDE ;label loop_8bit
 end_send:	mov r0,0x0
 			mov io (0x1E),r0 ;var r_cont_st
-			
-			
-			
-			
-			
-			
-			
-			
-			
 			
 			
 			
@@ -990,22 +990,22 @@ intext_select:	mov (0x0),r0 ;var mem_r0
 			jz 0x3E5 ;label intextbs
 intextbd:	mov r0,0x8 ;var des_int_ext0
 			mov io (0x0),r0 ;var r_ctrl_int_st
-			mvs r0,0x1 ;var hint
+			mvs r0,0x3 ;var hint
 			mov r15,r0
 			mvs r2,0x1 ;var interrompeu
 			mov r0,(0x0) ;var mem_r0
-			jmp 0x53 ;label check_type
+			jmp 0x5E ;label check_type
 intextbs:	mov r0,0x8 ;var des_int_ext0
 			mov io (0x0),r0 ;var r_ctrl_int_st
 			mvs r0,0x1
 			mov r10,r0
 			mov r0,0x6 ;var hab_int_ext0_bd
 			mov io (0x0),r0 ;var r_ctrl_int_st
-			mvs r0,0x1 ;var hint
+			mvs r0,0x3 ;var hint
 			mov r15,r0
 			mvs r2,0x1 ;var interrompeu
 			mov r0,(0x0) ;var mem_r0
-			jmp 0x43 ;label ext_check
+			jmp 0x46 ;label ext_check
 			
 			
 			

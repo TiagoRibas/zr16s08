@@ -1,5 +1,5 @@
 ;----------------------------------------------------- 
-;STATUS - OPERACIONAL
+;STATUS - FUNCIONAL
 ;Code: adctopulse3.zr16
 ;Made by: Tiago Ribas e Michel Rodrigues
 ;This version implements a way to read the ADC and 
@@ -11,7 +11,8 @@
 ;v5- Implementation of timing between data
 ;v6- Implementation of receiving data mode at the end
 ;v7- Time between each 8 bits transmitted
-;14/11/2017 - tiago.trj@gmail.com
+;v7b- Otimizacao da leitura de id externa
+;17/11/2017 - tiago.trj@gmail.com
 ;------------------zr16-------------------------------
 			dv	devide_id	=	0b11110001		;Identificacao do dispositivo
 			dr	data_pntr	=	r1  			;Reg. de posicao do ponteiro de dados
@@ -20,7 +21,7 @@
 ;----------controle_de_interupcao---------------------
 			dv	esperando	=	0				;Status de interrupcao esperando
 			dv	interrompeu	=	1  				;Status de interrupcao interrompeu
-			dv	hint	=	0b00000001			;Bit hint
+			dv	hint	=	0b00000011			;Bit hint
 			dv	rot_int	=	0x3C0				;Endereco de rotina de interrupcao
 			dv	mem_r0	=	0x00				;Endereco de backup de r0
 			dv	r_ctrl_int_st	=	0x00		;Reg. controle de interrupcao
@@ -59,6 +60,9 @@
 			dv	tempo_espera	=	1000		            ; 1ms (1000)
 			dv	dc_msb_espera	=	sr8(tempo_espera)		;
 			dv	dc_lsb_espera	=	0x00FF & tempo_espera	;
+			dv	tempo_timeout 	= 	50000					;50ms (50000)
+			dv	dc_msb_timeout	=	sr8(tempo_timeout)		;
+			dv	dc_lsb_timeout	=	0x00FF & tempo_timeout	;
 			dr	contador	=	r5		;Resgistrador contador de loops do timer
 			dv	ciclos_data	=	10    	;Ciclos a serem efetuados pelo timer
 			dv	ciclos_espera	=	25
@@ -133,30 +137,41 @@ pre_espera:	mov r0,adc_stop				;Para o adc
 ;			inc contador				;Incrementa o contador
 ;			mov r0,ciclos_espera		;Compara com os ciclos desejados
 ;			cmp	r0,contador				;
-;			jz pre_envio				;Se executou todos os ciclos segue em frente
+;			jz clear_id					;Se executou todos os ciclos segue em frente
 ;			jmp espera					;
 ;----------sinal_externo-----------------------------------
 clear_id:	mov	r0,0
 			mov	(0x01),r0
+			mov	deslocamentos,r0
 pre_envio:	mov	r0,0					;Desliga timer
 			mov	io	(r_cont_st),r0		;
 			mov	extension,r0
-			mov	r0,dc_lsb_ext			;Configura a carga 0 do timer
+			mov	r0,dc_lsb_timeout		;Configura a carga 0 do timer
 			mov	io	(r_c0),r0			;
-			mov	r0,dc_msb_ext			;Configura a carga 1 do timer
+			mov	r0,dc_msb_timeout		;Configura a carga 1 do timer
 			mov	io	(r_c1),r0			;
+			mov	r0,0b10100000			;Informa que esta esperando int via led sd6
+			mov	io	(r_io_sd),r0 		;
 			mvs	r0,0					; Informa que int ext eh bs
 			mov	intext_type,r0			;
 			mov	r0,hab_int_ext0_bs		;Hab. int. externa 0 com borda de subida
 			mov	io	(r_ctrl_int_st),r0	;
-			mov	r0,0b10100000			;Informa que esta esperando int
-			mov	io	(r_io_sd),r0 		;
+			mov	r0,hab_timer			;aciona um timer de um ciclo de 50ms
+			mov io	(r_cont_st),r0
 ext_check:	mov	status_int,status_int	;Verifica se teve int. ext.
 			jz	ext_check				;Caso nao volta a esperar
 			mvs	status_int,esperando	;Caso sim próxima espera
-again:		mvs	r0,0					;Zera contador
-			mov	contador,r0				;
-			mov	r0,hab_timer			;Hablita timer
+			mov	intext_type,intext_type	;verifica se a interrupcao foi da borda
+			jnz	again					;foi vai pra again
+			jmp	clear_id				;fechou o timer vai pra clear_id 
+again:		mvs	r0,0					;
+			mov	(r_cont_st),r0			;Desliga timer
+			mov	contador,r0				;Zera contador
+			mov	r0,dc_lsb_ext			;Configura a carga 0 do timer
+			mov	io	(r_c0),r0			;
+			mov	r0,dc_msb_ext			;Configura a carga 1 do timer
+			mov	io	(r_c1),r0			;
+			mov	r0,hab_timer			;Habilita timer
 			mov	io	(r_cont_st),r0		;
 ext_check2:	mov	status_int,status_int
 			jz	ext_check2
@@ -176,7 +191,7 @@ check_type:	mov	r0,0					;Desliga timer
 			mvs	r0,2
 			cmp	extension,r0
 			jz	type_1
-			jmp pre_envio
+			jmp clear_id
 type_0:		mov	r0,(0x01)
 			rot (0x01),r0
 			mov r0,0b11111110
@@ -196,9 +211,7 @@ type_1:		mov	r0,(0x01)
 rot_check8:	mvs	r0,8
 			cmp	deslocamentos,r0
 			jnz	pre_envio
-rot_check:	mvs	r0,0
-			mov	deslocamentos,r0
-			mov	r0,(0x02)
+rot_check:	mov	r0,(0x02)
 			cmp	(0x01),r0
 			jnz	clear_id
 ;----------envio_de_dados-----------------------------------
