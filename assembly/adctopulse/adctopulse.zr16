@@ -1,4 +1,5 @@
 ;----------------------------------------------------- 
+;STATUS - OPERACIONAL
 ;Code: adctopulse3.zr16
 ;Made by: Tiago Ribas e Michel Rodrigues
 ;This version implements a way to read the ADC and 
@@ -9,9 +10,10 @@
 ;is being transmitted.
 ;v5- Implementation of timing between data
 ;v6- Implementation of receiving data mode at the end
+;v7- Time between each 8 bits transmitted
 ;14/11/2017 - tiago.trj@gmail.com
 ;------------------zr16-------------------------------
-			dv	devide_id	=	0b00101010		;Identificacao do dispositivo
+			dv	devide_id	=	0b11110001		;Identificacao do dispositivo
 			dr	data_pntr	=	r1  			;Reg. de posicao do ponteiro de dados
 			dr	data_from_pntr	=	r4 			;
 			dr	bitcounter	=	r8 
@@ -48,13 +50,13 @@
 			dv	r_c1	=	0x1D				;Endereco de carga um
 			dv	r_cont_st	=	0x1E   			;Endereco de controle do timer
 			dv	hab_timer	=	0b10000111		;Comando de habilitacoa do timer
-			dv	tempo	=	10				;0,05s (5000)
+			dv	tempo	=	10				    ;0,05s (5000)
 			dv	dc_msb	=	sr8(tempo)			;Carga 0 do timer
 			dv	dc_lsb	=	0x00FF & tempo		;Carga 1 do timer
-			dv	tempo_ext	=	100				;0,1ms
+			dv	tempo_ext	=	100				        ;0,1ms (100)
 			dv	dc_msb_ext	=	sr8(tempo_ext)			;Carga 0 do timer
 			dv	dc_lsb_ext	=	0x00FF & tempo_ext		;Carga 1 do timer
-			dv	tempo_espera	=	1000		;
+			dv	tempo_espera	=	1000		            ; 1ms (1000)
 			dv	dc_msb_espera	=	sr8(tempo_espera)		;
 			dv	dc_lsb_espera	=	0x00FF & tempo_espera	;
 			dr	contador	=	r5		;Resgistrador contador de loops do timer
@@ -72,7 +74,7 @@ setup:		mvs	status_int,esperando	;Informa que o dispositivo espera por uma inter
 			mov	r0,devide_id
 			mov	(0x02),r0 			;Identifica o dispositivo
 			mov	r0,0x03
-			mov	data_pntr,r0		;Começa na posição zero da memória 
+			mov	data_pntr,r0		;Começa na posição 0x03 da memória 
 			mvs contador,0			;Carrega 0 no contador
 			mov	r0,hsd0567			;Habilita saidas digitais 0,6 e 7
 			mov	io	(r_io_hsd),r0	;
@@ -108,7 +110,7 @@ loop_data:	mov	status_int,status_int	;Verifica se ocorreu interrupcao
 			mov	io	(r_cont_st),r0		;
 			mov	r0,0
 			mov	contador,r0
-			mov	r0,0xFF			;Verifica se a memória está cheia
+			mov	r0,0x04			;Verifica se a memória está cheia
 			cmp	r0,data_pntr	;
 			jz	pre_espera		;Caso memória cheia espera para enviar dados
 			mov	r0,soc_ch3_int				;Liga o ADC
@@ -133,7 +135,9 @@ pre_espera:	mov r0,adc_stop				;Para o adc
 ;			cmp	r0,contador				;
 ;			jz pre_envio				;Se executou todos os ciclos segue em frente
 ;			jmp espera					;
-;----------sinal_externo----------------------------------- 
+;----------sinal_externo-----------------------------------
+clear_id:	mov	r0,0
+			mov	(0x01),r0
 pre_envio:	mov	r0,0					;Desliga timer
 			mov	io	(r_cont_st),r0		;
 			mov	extension,r0
@@ -180,7 +184,7 @@ type_0:		mov	r0,(0x01)
 			mov	r0,0b00000000
 			or	(0x01),r0
 			inc deslocamentos
-			jmp rot_check
+			jmp rot_check8 ; original rot_check
 type_1:		mov	r0,(0x01)
 			rot (0x01),r0
 			mov r0,0b11111110
@@ -189,16 +193,16 @@ type_1:		mov	r0,(0x01)
 			or	(0x01),r0
 			inc deslocamentos  
 			;jmp rot_check
-;rot_check:	mvs	r0,8
-			;cmp	deslocamentos,r0
-			;jnz	pre_envio
+rot_check8:	mvs	r0,8
+			cmp	deslocamentos,r0
+			jnz	pre_envio
 rot_check:	mvs	r0,0
 			mov	deslocamentos,r0
 			mov	r0,(0x02)
 			cmp	(0x01),r0
-			jnz	pre_envio
+			jnz	clear_id
 ;----------envio_de_dados-----------------------------------
-			mov	r0,0x00
+			mov	r0,0x01
 			mov	data_pntr,r0
 check_end:	mov	r0,0xFF
 			cmp	data_pntr,r0
@@ -284,8 +288,27 @@ loop_low:	mov		status_int,status_int
 bit_check:	inc bitcounter
 			mov	r0,8
 			cmp	r0,bitcounter
-			jz	check_end
+			jz	pre_loop8
 			jmp	bit_brush
+pre_loop8:  mov	r0,0					;Desliga timer
+			mov	io	(r_cont_st),r0		;
+			mov	r0,dc_lsb_espera		;Configura a carga 0 do timer
+			mov	io	(r_c0),r0			;
+			mov	r0,dc_msb_espera		;Configura a carga 1 do timer
+			mov	io	(r_c1),r0			;
+			mvs 	contador,0          ;Zera contador
+            mov	r0,50
+            mov	tempo_low,r0
+			mov r0,hab_timer			;Habilita timer
+			mov io	(r_cont_st),r0		;
+loop_8bit:  mov	status_int,status_int
+            jz  loop_8bit
+            inc contador
+            cmp	tempo_low,contador
+            jz check_end
+            mov	r0,0					;Desliga timer
+			mov	io	(r_cont_st),r0		;
+            jmp loop_8bit
 ;----------fim_de_transmissao-----------------------------------
 end_send:	mov	r0,0					;Desliga timer
 			mov	io	(r_cont_st),r0		;
