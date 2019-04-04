@@ -2,9 +2,10 @@
 			dr		r_byte_inferior = r3			;Byte inferior do adc
 			dr		r_byte_superior = r4			;Byte superior do adc
 			dr		r_controle_int	= r5			;Status de interrupcao
-			dv		hint			= 0b00000001	;Habilita bit hint
+			dv		hint_ed			= 0b00000011	;Habilita bit hint
 			dv		rot_int 		= 0x3C0			;Comeco da rotina de int.
 			dr 		conv_end		= r10
+			dv      mem_r0       	= 0x00
 ;-----------controle_de_interrupcao-----------------------------------------
 			dv		r_int_st		= 0x00			;Registrador de status de int.
 			dv		int_adc			= 0b00000100	;Status de int no adc
@@ -28,12 +29,12 @@
 			dv		r_c1			= 0x1D				;Reg  carga um
 			dv		r_cont_st		= 0x1E				;Reg. status do down counter
 			dv		h_tir			= 0b10000111		;Habilitacao de contador
-			dv		tempo			= 50000				;Ciclos a serem efetuados numa contagem
+			dv		tempo			= 1000				;Ciclos a serem efetuados numa contagem
 			dv		dc_msb			= sr8(tempo)		;msb
 			dv		dc_lsb			= 0x00FF & tempo	;lsb
 			dr		contador		= r7				;Contador a ser incrementado
 			dr		tempo_high		= r8				;Tempo de high 
-			dr		tempo_low		= r9				;Tempo de low 
+			dr		tempo_low		= r9				;Tempo de low
 ;-------------------------------------------------------------------
 			mov		r0,hsd76210					;Habilitar saídas digitais
 			mov	io 	(r_io_hsd),r0				;
@@ -59,8 +60,8 @@ bit_chk2:	inc		bit_cont			;Incrementa uma posicao de bit
 			jnz		brush_lsb			;Efetua brush no lsb
 bit_chk10:	mov		r0,11				;Verifica se bit_cont =< 11
 			cmp		r0,bit_cont			;Se bit_cont =<0
+			jz		time_out				;Finaliza o brush e geração de pulso
 			jnz		brush_msb			;Efetua brush no msb
-			jz		time_out				;Finaliza o brush e geração de pulso	
 brush_lsb:	jc		bit_chk10							;Verifica se existe carry
 			mov		r0,r_byte_inferior					;Aplica mascara 
 			and		r0,masc_bit_zero					;
@@ -75,54 +76,71 @@ brush_msb:	mov		r0,r_byte_superior					;Aplica mascara
 			jz		pulso_zero							;Caso bit=0 gera pulso_zero
 			jnz		pulso_um							;Caso bit=1 gera pulso_um
 end_brush:	mvs		conv_end,1
+			mvs		r_controle_int,0
 			jmp		adc_check							;Volta a esperar pelo adc
-time_out:	mvs		r_controle_int,0		
-			mvs		contador,0
-			mov		r0,255
+time_out:	mov 	r0,0b10000000						;Desliga saída SD0 e diz que está rodando
+			mov 	io (r_io_sd),r0						;
+			mvs		r_controle_int,0					;Reseta interrupção
+			mvs		contador,0							;Reseta contador
+			mov		r0,100								;Carga de low para ficar desligado
 			mov		tempo_low,r0
-wait:		mvs		r_controle_int,0
+wait:		mov		r_controle_int,r_controle_int
+			jz		espera3
 			inc 	contador								
 			cmp 	tempo_low,contador 						
-			jz 		end_brush						
+			jz 		end_brush
+			mvs		r_controle_int,0						
 			jmp 	wait
+espera3:	mov		r_controle_int,r_controle_int
+			jz		espera3
+			jmp		wait
 ;-----------define_pulso-----------------------------------------------
 pulso_zero:	mvs		r_controle_int,0		
 			mvs		contador,0
-			mov		r0,20
+			mov		r0,25						;Tempo de high do pulso zero
 			mov		tempo_high,r0
-			mov		r0,20
+			mov		r0,25						;Tempo de low do pulso zero
 			mov		tempo_low,r0
-			jmp		set_high		
+			jmp		set_low		
 pulso_um:	mvs		r_controle_int,0
 			mvs		contador,0
-			mov		r0,40
+			mov		r0,50						;Tempo de high do pulso um
 			mov		tempo_high,r0
-			mov		r0,20
+			mov		r0,25						;Tempo de low do pulso um
 			mov		tempo_low,r0
-			jmp		set_high
+			jmp		set_low
 ;------------gera_pulso-------------------------------------------------
 set_high:	mov 	r0,0b10000001						
 			mov 	io (r_io_sd),r0
 			mvs 	contador,0							
 			jmp 	loop_high						
-loop_high: 	mvs		r_controle_int,0
+loop_high: 	mov		r_controle_int,r_controle_int
+			jz		espera1
 			inc 	contador						
 			cmp 	tempo_high,contador						
-			jz 		set_low							
-			jmp 	loop_high						
-			mov 	io (r_io_sd),r0
-			mvs 	contador,0
+			jz 		bit_chk2
+			mvs		r_controle_int,0							
+			jmp 	espera1						
 set_low:	mov 	r0,0b10000000						
-			mov 	io (r_io_sd),r0
+			mov io 	(r_io_sd),r0
 			mvs 	contador,0							
 			jmp 	loop_low							
-loop_low:	mvs		r_controle_int,0
+loop_low:	mov		r_controle_int,r_controle_int
+			jz		espera2
 			inc 	contador								
 			cmp 	tempo_low,contador 						
-			jz 		bit_chk2						
-			jmp 	loop_low								
+			jz 		set_high
+			mvs		r_controle_int,0						
+			jmp 	espera2
+espera1:	mov		r_controle_int,r_controle_int
+			jz		espera1
+			jmp		loop_high						
+espera2:	mov		r_controle_int,r_controle_int
+			jz		espera2
+			jmp		loop_low						
 ;-----------interrupcao----------------------------------------------
 			org		rot_int
+			mov     (mem_r0),r0
 			mov	io	r0,(r_int_st)	;Verificar tipo de interrupcao
 			cmp		r0,int_adc		;Eh no ADC?
 			jz		intadc			;Sim, vai para a interrupcao do adc
@@ -141,16 +159,21 @@ intadc:		mvs		r_controle_int,1				;Status->Interrompeu
 			mov     r0,adc_stop          			;Para conversao do ADC
 			mov	io	(r_adc_ctrl_sta_lsb),r0			;
 			mov		r0,h_tir						;Ativa down counter
-			mov	io	(r_cont_st),r0					;
+			mov	io	(r_cont_st),r0
+			mov		r0,(mem_r0)						;
 			rets									;Retorna ao codigo
 inttimer:	mov     conv_end,conv_end
 			jnz		restart		
 			mvs 	r_controle_int,1				;	
 			mov		r0,h_tir
 			mov	io	(r_cont_st),r0
+			mov		r0,(mem_r0)
 			rets		
-restart:	mov		r0,0b00000000						;Para o timer
+restart:	mov		r0,0b10000000						;Para o timer
 			mov	io	(r_cont_st),r0						;
 			mov		r0,soc_ch3_int						;configura para ADC ch3
 			mov io	(r_adc_ctrl_sta_lsb),r0				;Ativa ADC
+			mvs		conv_end,0
+			mvs 	r_controle_int,0
+			mov		r0,(mem_r0)							
 			rets
