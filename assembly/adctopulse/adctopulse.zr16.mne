@@ -50,17 +50,6 @@ pre_espera:	mov r0,0xF ;var adc_stop
 			mov io (0x1C),r0 ;var r_c0
 			mov r0,0x3 ;var dc_msb_espera
 			mov io (0x1D),r0 ;var r_c1
-			mov r0,0x87 ;var hab_timer
-			mov io (0x1E),r0 ;var r_cont_st
-espera:	mov r2,r2
-			jz 0x36 ;label espera
-			mvs r0,0x0 ;var esperando
-			mov r2,r0
-			inc r5
-			mov r0,0x19 ;var ciclos_espera
-			cmp r0,r5
-			jz 0x3F ;label pre_envio
-			jmp 0x36 ;label espera
 pre_envio:	mov r0,0x0
 			mov io (0x1E),r0 ;var r_cont_st
 			mov r0,0x5 ;var hab_int_ext0_bs
@@ -68,86 +57,97 @@ pre_envio:	mov r0,0x0
 			mov r0,0xA0
 			mov io (0xA),r0 ;var r_io_sd
 ext_check:	mov r2,r2
-			jz 0x45 ;label ext_check
-			mov r0,0x1
+			jz 0x3A ;label ext_check
+			mvs r2,0x0 ;var esperando
+			mov r0,0x0
 			mov r1,r0
 check_end:	mov r0,0xFF
 			cmp r1,r0
-			jz 0x81 ;label end_send
+			jz 0x93 ;label end_send
+			mov r0,0x0
+			mov r8,r0
+			mov r5,r0
+			mov r0,0x87 ;var hab_timer
+			mov io (0x1E),r0 ;var r_cont_st
+loop_send:	mov r2,r2
+			jz 0x47 ;label loop_send
+			mvs r2,0x0 ;var esperando
+			inc r5
+			mov r0,0x32 ;var ciclos_send
+			cmp r0,r5
+			jz 0x4F ;label reload
+			jmp 0x47 ;label loop_send
+reload:	mov r0,0x0
+			mov io (0x1E),r0 ;var r_cont_st
+			mov r0,0xE8 ;var dc_lsb_espera
+			mov io (0x1C),r0 ;var r_c0
+			mov r0,0x3 ;var dc_msb_espera
+			mov io (0x1D),r0 ;var r_c1
 get_data:	inc r1
 			mov r0,(r1)
 			mov r4,r0
 bit_brush:	mov r0,r4
 			and r0,0x1 ;var masc_bit_zero
 			shl r4,r4
-			cmp r0,r0
-			jz 0x55 ;label pulso_zero
-			jnz 0x5C ;label pulso_um
+			mov r0,r0
+			jz 0x5E ;label pulso_zero
+			jnz 0x65 ;label pulso_um
 pulso_zero:	mvs r2,0x0 ;var esperando
 			mvs r5,0x0
-			mov r0,0x19
+			mov r0,0xA
 			mov r6,r0
-			mov r0,0x19
+			mov r0,0x28
 			mov r7,r0
-			jmp 0x63 ;label set_high
+			jmp 0x6C ;label set_high
 pulso_um:	mvs r2,0x0 ;var esperando
 			mvs r5,0x0
 			mov r0,0x19
 			mov r6,r0
 			mov r0,0x19
 			mov r7,r0
-			jmp 0x63 ;label set_high
-set_high:	mov r0,0x81
+			jmp 0x6C ;label set_high
+set_high:	mov r0,0xE8 ;var dc_lsb_espera
+			mov io (0x1C),r0 ;var r_c0
+			mov r0,0x3 ;var dc_msb_espera
+			mov io (0x1D),r0 ;var r_c1
+			mov r0,0x81
 			mov io (0xA),r0 ;var r_io_sd
 			mvs r5,0x0
 			mov r0,0x87 ;var hab_timer
 			mov io (0x1E),r0 ;var r_cont_st
-			jmp 0x69 ;label loop_high
 loop_high:	mov r2,r2
-			jz 0x69 ;label loop_high
+			jz 0x75 ;label loop_high
 			inc r5
 			cmp r6,r5
-			jz 0x70 ;label set_low
+			jz 0x7C ;label set_low
 			mvs r2,0x0 ;var esperando
-			jmp 0x69 ;label loop_high
-set_low:	mov r0,0x80
+			jmp 0x75 ;label loop_high
+set_low:	mov r0,0x0
+			mov io (0x1E),r0 ;var r_cont_st
+			mov r0,0xE8 ;var dc_lsb_espera
+			mov io (0x1C),r0 ;var r_c0
+			mov r0,0x3 ;var dc_msb_espera
+			mov io (0x1D),r0 ;var r_c1
+			mov r0,0x80
 			mov io (0xA),r0 ;var r_io_sd
 			mvs r5,0x0
-			jmp 0x74 ;label loop_low
+			mov r0,0x87 ;var hab_timer
+			mov io (0x1E),r0 ;var r_cont_st
 loop_low:	mov r2,r2
-			jz 0x74 ;label loop_low
+			jz 0x87 ;label loop_low
 			inc r5
 			cmp r7,r5
-			jz 0x49 ;label check_end
+			jz 0x8E ;label bit_check
 			mvs r2,0x0 ;var esperando
-			jmp 0x74 ;label loop_low
-wait_high:	mov r2,r2
-			jz 0x7B ;label wait_high
-			jmp 0x69 ;label loop_high
-wait_low:	mov r2,r2
-			jz 0x7E ;label wait_low
-			jmp 0x74 ;label loop_low
+			jmp 0x87 ;label loop_low
+bit_check:	inc r8
+			mov r0,0x8
+			cmp r0,r8
+			jz 0x3F ;label check_end
+			jmp 0x58 ;label bit_brush
 end_send:	mov r0,0x0
 			mov io (0x1E),r0 ;var r_cont_st
 			jmp 0x0 ;label setup
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
 			
 			
 			
